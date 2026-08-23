@@ -1,8 +1,7 @@
 // ==UserScript==
 // @name         Javdb全能助手
 // @name:en      JavdbBuddy
-// @namespace    https://github.com/86168057/JavdbBuddy
-// @version      1.2.3
+// @namespace    https://github.com/86168057/JavdbBuddy// @version        1.2.4
 // @description  JAVDB 一站式增强 Tampermonkey 用户脚本，集成 Emby / Jellyfin 入库状态同步、预览图查看、磁力链管理、多站点快捷搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单等功能。
 // @description:en  JavdbBuddy - JAVDB All-in-One Assistant: Emby / Jellyfin library sync, preview images, magnet links, multi-site search, Hot/Top250/FC2PPV, all reviews, related lists
 // @description:zh-CN  JAVDB + Emby / Jellyfin 联动脚本：实时同步入库状态、预览图查看、磁力链管理、多站点搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单
@@ -27,6 +26,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_download
+// @grant        GM_openInTab
 // @connect      *
 // @connect      localhost
 // @connect      jdforrepam.com
@@ -181,8 +181,8 @@
             // ========== MISSAV 播放器模式 ==========
             if (isMissav) {
                 function missavInit() {
-                    // 查找主播放器视频（排除侧边栏预览）
-                    const playerVideo = document.querySelector('video.player');
+                    // 查找主播放器视频（优先 video.player，兜底任意 video）
+                    let playerVideo = document.querySelector('video.player') || document.querySelector('video:not(.preview)');
                     if (!playerVideo) return false;
 
                     // 视频已加载，注入播放器样式
@@ -233,6 +233,21 @@
                             parent = parent.parentElement;
                         }
                     }
+
+                    // 额外隐藏 MISSAV 原生页面的下载/弹出窗口/新窗口按钮（中英文均匹配，并持续监听新增元素）
+                    const jbHideMissavBtns = () => {
+                        Array.from(document.querySelectorAll('a, button')).forEach(el => {
+                            if (el.closest('.plyr')) return;
+                            const txt = ((el.textContent || '') + ' ' + (el.title || '') + ' ' + (el.getAttribute('aria-label') || '')).trim();
+                            if (/下载|弹出|新窗口|全屏|窗口|download|popup|pop-out|new window|fullscreen/i.test(txt)) {
+                                el.style.display = 'none';
+                            }
+                        });
+                    };
+                    jbHideMissavBtns();
+                    const jbHideMissavObs = new MutationObserver(jbHideMissavBtns);
+                    jbHideMissavObs.observe(document.body, { childList: true, subtree: true });
+                    window.__jbHideMissavObs = jbHideMissavObs;
 
                     console.log('[JB Player Mode] MISSAV 播放器样式已注入');
                     return true;
@@ -304,6 +319,20 @@
                     if (videoEl.tagName === 'VIDEO' && videoEl.paused) {
                         videoEl.play().catch(() => {});
                     }
+
+                    // 额外隐藏 Jable 原生页面的下载/弹出窗口按钮（中英文均匹配，并持续监听新增元素）
+                    const jbHideJableBtns = () => {
+                        Array.from(document.querySelectorAll('a, button')).forEach(el => {
+                            const txt = ((el.textContent || '') + ' ' + (el.title || '') + ' ' + (el.getAttribute('aria-label') || '')).trim();
+                            if (/下载|弹出|新窗口|全屏|窗口|download|popup|pop-out|new window|fullscreen/i.test(txt)) {
+                                el.style.display = 'none';
+                            }
+                        });
+                    };
+                    jbHideJableBtns();
+                    const jbHideJableObs = new MutationObserver(jbHideJableBtns);
+                    jbHideJableObs.observe(document.body, { childList: true, subtree: true });
+                    window.__jbHideJableObs = jbHideJableObs;
 
                     console.log('[JB Player Mode] Jable 播放器样式已注入');
                     return true;
@@ -510,7 +539,15 @@ var waitForHls = setInterval(function() {
                     if (tryExtractAndPlay()) { clearInterval(timer); return; }
                     if (attempts >= 60) {
                         clearInterval(timer);
-                        showDirectError();
+                        // 直链提取失败：自动降级为播放器模式（隐藏页面其它元素、保留网站原生播放器），不再卡在"正在解析视频地址..."
+                        jbRemoveBoot();
+                        const codeMatch = location.pathname.match(/([A-Za-z]{2,6}-\d{2,5}[A-Za-z]?)/i);
+                        if (codeMatch) {
+                            const modeUrl = location.origin + location.pathname + '?jb_player_mode=1';
+                            location.replace(modeUrl);
+                        } else {
+                            showDirectError();
+                        }
                     }
                 }, 250);
             }
@@ -770,16 +807,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                 <input type="file" id="jb-imgsearch-file" accept="image/*" style="display:none;">
                 <div id="jb-imgsearch-status" style="text-align:center;margin-top:14px;color:#666;font-size:13px;min-height:20px;"></div>
             `);
-            // 在用户点击"识图"的同步调用栈中预先创建结果标签页（用户手势，不会被拦截）
-            const targetName = 'jb_google_lens_result';
-            try {
-                window.__jbImageSearchTab = window.open('about:blank', targetName);
-                if (window.__jbImageSearchTab && !window.__jbImageSearchTab.closed) {
-                    window.__jbImageSearchTab.document.write('<title>Google 识图 - 等待上传</title><p style="font:14px Arial;color:#666;text-align:center;margin-top:20vh;">等待上传图片...</p>');
-                    window.__jbImageSearchTab.document.close();
-                    try { window.__jbImageSearchTab.blur(); window.focus(); } catch (focusErr) {}
-                }
-            } catch (e) { window.__jbImageSearchTab = null; }
+            // 不再预开标签页：上传成功后用 GM_openInTab 打开（不受弹窗拦截限制）
 
             const drop = document.getElementById('jb-imgsearch-drop');
             const fileInput = document.getElementById('jb-imgsearch-file');
@@ -824,7 +852,9 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         }
     }
 
-    // 通过 Google 搜图上传接口提交图片（标签页已在点击"识图"时预创建，拖拽/粘贴/选择文件只负责提交表单）
+        // Google 以图搜图：优先用原生表单提交（真正浏览器导航、带完整 cookie、不被 Google 风控拦截、不会 403），
+        // 上传后自动打开结果页；window.open 被弹窗拦截时回退到 GM_xmlhttpRequest + GM_openInTab。
+        // 必须在用户手势同步栈中调用（文件选择 / 拖拽 / 粘贴事件），才能正常开新标签页。
     function jbSearchImageByFile(file, statusEl) {
         try {
             if (!file || !/^image\//i.test(file.type || '')) {
@@ -834,49 +864,97 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
             if (statusEl) statusEl.innerHTML = '⏳ 正在上传识别...';
 
             const targetName = 'jb_google_lens_result';
-            // 优先使用预创建的标签页，如果已被关闭则尝试重新打开
-            let searchTab = window.__jbImageSearchTab;
-            if (!searchTab || searchTab.closed) {
-                searchTab = window.open('about:blank', targetName);
-                if (searchTab) {
-                    searchTab.document.write('<title>Google 识图</title><p style="font:14px Arial;color:#666;text-align:center;margin-top:20vh;">正在上传识别...</p>');
-                    searchTab.document.close();
-                }
-            }
-            if (!searchTab || searchTab.closed) {
-                if (statusEl) statusEl.innerHTML = '⚠️ 浏览器阻止了弹出窗口，请允许本站弹出窗口后重试';
+
+            // 方案一：在用户手势同步栈中打开结果窗口 + 原生表单提交
+            let win = null;
+            try {
+                win = window.open('', targetName, 'width=1000,height=700');
+            } catch (e) { win = null; }
+            if (win && !win.closed) {
+                try {
+                    win.document.open();
+                    win.document.write('<title>Google 识图</title><p style="font:14px Arial,sans-serif;text-align:center;margin-top:20vh;color:#666;">正在上传图片，请稍候...</p>');
+                    win.document.close();
+                } catch (e) {}
+                // 构造隐藏文件输入并赋值（DataTransfer 兼容）
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.name = 'encoded_image';
+                input.style.display = 'none';
+                try {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    input.files = dt.files;
+                } catch (e) {}
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'https://www.google.com/searchbyimage/upload';
+                form.enctype = 'multipart/form-data';
+                form.target = targetName;
+                form.style.display = 'none';
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+                setTimeout(() => form.remove(), 3000);
+                if (statusEl) statusEl.innerHTML = '✅ 已上传，正在打开识图结果...';
+                setTimeout(() => { if (isModalVisible()) hideModal(); }, 600);
                 return;
             }
 
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.enctype = 'multipart/form-data';
-            form.action = 'https://www.google.com/searchbyimage/upload';
-            form.target = targetName;
-            form.style.display = 'none';
-
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.name = 'encoded_image';
-            input.accept = 'image/*';
-            const transfer = new DataTransfer();
-            transfer.items.add(file);
-            input.files = transfer.files;
-            form.appendChild(input);
-
-            document.body.appendChild(form);
-            form.submit();
-            form.remove();
-
-            if (statusEl) statusEl.innerHTML = '✅ 已上传，正在新标签页搜索...';
-            setTimeout(() => { if (isModalVisible()) hideModal(); }, 800);
+            // 方案二：弹窗被拦截，改用 GM_xmlhttpRequest 上传 + GM_openInTab 打开（不受弹窗拦截限制）
+            const formData = new FormData();
+            formData.append('encoded_image', file, file.name || 'image.jpg');
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: 'https://www.google.com/searchbyimage/upload',
+                data: formData,
+                cookie: true,
+                anonymous: false,
+                headers: {
+                    'User-Agent': navigator.userAgent,
+                    'Referer': 'https://www.google.com/',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                },
+                timeout: 30000,
+                followRedirects: false,
+                onload: (resp) => {
+                    let loc = '';
+                    const h = (resp.responseHeaders || '').split(/\r?\n/);
+                    for (const line of h) {
+                        if (/^location:/i.test(line.trim())) {
+                            loc = line.trim().replace(/^location:\s*/i, '');
+                            break;
+                        }
+                    }
+                    if (loc && loc.startsWith('/')) loc = 'https://www.google.com' + loc;
+                    const status = resp.status || 0;
+                    const isRedirect = status >= 300 && status < 400;
+                    if (loc && isRedirect && !/login|sign_in|sorry/i.test(loc)) {
+                        if (typeof GM_openInTab === 'function') {
+                            GM_openInTab(loc, { active: true, insert: true });
+                        } else {
+                            window.open(loc, '_blank');
+                        }
+                        if (statusEl) statusEl.innerHTML = '✅ 已上传，正在打开识图结果...';
+                        setTimeout(() => { if (isModalVisible()) hideModal(); }, 600);
+                    } else {
+                        if (statusEl) statusEl.innerHTML = '⚠️ 上传被 Google 拒绝（' + status + '），请稍后重试';
+                    }
+                },
+                onerror: () => {
+                    if (statusEl) statusEl.innerHTML = '⚠️ 网络错误，上传失败';
+                },
+                ontimeout: () => {
+                    if (statusEl) statusEl.innerHTML = '⚠️ 上传超时，请重试';
+                }
+            });
         } catch (e) {
             console.warn('JavdbBuddy: 识图提交失败', e);
             if (statusEl) statusEl.innerHTML = '⚠️ ' + (e.message || '识图提交失败');
         }
     }
 
-    // ---------- 导航栏增强 ----------
+// ---------- 导航栏增强 ----------
     function jbAddNavigation() {
         const navbarEnd = document.querySelector('.navbar-end, .navbar-menu .navbar-end');
         if (!navbarEnd) return;
@@ -2013,7 +2091,6 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                                         <option value="screenshot" ${previewMode === 'screenshot' ? 'selected' : ''}>外部截图长图（javstore / javfree 两站）</option>
                                     </select>
                                 </div>
-                                </div>
                             </div>
                         </div>
 
@@ -2160,7 +2237,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">微信</p>
                                     </div>
                                     <div>
-                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="微信" onclick="window.open(this.src,'_blank')">
+                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E6%94%AF%E4%BB%98%E5%AE%9D%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="支付宝" onclick="window.open(this.src,'_blank')">
                                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">支付宝</p>
                                     </div>
                                 </div>
@@ -2184,6 +2261,20 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         overlay.innerHTML = html;
         document.body.appendChild(overlay);
 
+        // 打开设置页时锁定背景滚动，关闭（overlay 被移除）时恢复
+        const jbPrevOverflow = document.body.style.overflow;
+        const jbPrevHeight = document.body.style.height;
+        document.body.style.overflow = 'hidden';
+        document.body.style.height = '100%';
+        const jbOverlayWatcher = new MutationObserver(() => {
+            if (!overlay.isConnected) {
+                document.body.style.overflow = jbPrevOverflow || '';
+                document.body.style.height = jbPrevHeight || '';
+                jbOverlayWatcher.disconnect();
+            }
+        });
+        jbOverlayWatcher.observe(document.body, { childList: true, subtree: true });
+
         // 分类切换逻辑
         const tabs = overlay.querySelectorAll('.jb-setting-tab');
         const contents = overlay.querySelectorAll('.jb-tab-content');
@@ -2198,6 +2289,9 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                 const targetContent = overlay.querySelector('#' + target);
                 if (targetContent) targetContent.style.display = 'block';
                 if (titleEl) titleEl.textContent = tabTitles[target] || '';
+                // 切换 tab 时重置内容区滚动位置，避免内容显示在偏下位置
+                const settingContent = overlay.querySelector('#jb-setting-content');
+                if (settingContent) settingContent.scrollTop = 0;
             });
         });
 
@@ -3606,7 +3700,9 @@ if (Hls.isSupported()) {
         w.document.close();
     }
 
-    // 直链播放：点击后直连目标站点，不做任何预检测，秒开播放窗口
+    // 在线播放：点击后直连目标站点，优先「播放器模式」
+    // 播放器模式不依赖 m3u8 提取（MISSAV 改版后直链提取容易失败），而是隐藏页面其它元素、
+    // 让网站原生播放器全屏播放，同时自动隐藏原生“下载/弹出窗口”按钮。
     function showDirectPlayer(videoCode, siteName) {
         const site = ONLINE_PLAY_SITES.find(s => s.name === siteName) || ONLINE_PLAY_SITES[0];
         const targetUrl = site.getUrl(videoCode);
@@ -3616,7 +3712,7 @@ if (Hls.isSupported()) {
         showDirectPlayer._lastOpen = Date.now();
         // 关键：必须在用户点击的同步调用栈中打开窗口，否则会被弹窗拦截器静默拦截（导致点击无反应）
         // 固定窗口名：重复点击复用同一窗口导航，不再叠加开新窗
-        const playerWin = window.open(targetUrl + separator + 'jb_direct_mode=1', 'jb_player_win', 'width=1060,height=680,top=' + Math.max(0, Math.round((screen.height - 680) / 2)) + ',left=' + Math.max(0, Math.round((screen.width - 1060) / 2)) + ',scrollbars=no,resizable=yes');
+        const playerWin = window.open(targetUrl + separator + 'jb_player_mode=1', 'jb_player_win', 'width=1060,height=680,top=' + Math.max(0, Math.round((screen.height - 680) / 2)) + ',left=' + Math.max(0, Math.round((screen.width - 1060) / 2)) + ',scrollbars=no,resizable=yes');
         if (!playerWin) {
             showToast('弹窗被浏览器拦截，请在地址栏允许本站弹出式窗口后重试');
         } else {
@@ -7066,9 +7162,6 @@ if (Hls.isSupported()) {
                     if (existingSearchPanel) toolsContainer.insertBefore(toolsRow2, existingSearchPanel);
                     else toolsContainer.appendChild(toolsRow2);
 
-                    addWantWatchButton(toolsRow2, item, code);
-                    addWatchedButton(toolsRow2, item, code);
-                    addSaveListButton(toolsRow2, item, code);
                     addCopyCodeButton(toolsRow2, code);
                 }
 
@@ -7106,10 +7199,35 @@ if (Hls.isSupported()) {
                     if (existingPanel) existingPanel.style.display = 'none';
                 }
 
-                // 只请求一次详情页，同时初始化三个账户按钮状态，确保与详情页同步。
-                if (!item.dataset.jbAccountStateRequested) {
-                    item.dataset.jbAccountStateRequested = '1';
-                    jbLoadAccountState(item, code);
+                // 键盘快捷键：W=想看 V=看过 L=存入清单（作用于当前悬停的列表项，功能与详情页一致）
+                if (!window.__jbListShortcutInit) {
+                    window.__jbListShortcutInit = true;
+                    let hoverItem = null;
+                    let hoverCode = '';
+                    document.addEventListener('mouseover', (e) => {
+                        const el = e.target && e.target.closest ? e.target.closest('.item, .movie-item, [data-movie-id], .card') : null;
+                        if (el) {
+                            hoverItem = el;
+                            const a = el.querySelector('a[href*="/v/"]');
+                            if (a) hoverCode = (a.getAttribute('title') || '').trim();
+                            else {
+                                const t = el.querySelector('.video-title strong, .video-title, .title');
+                                hoverCode = t ? t.textContent.trim() : '';
+                            }
+                        }
+                    }, true);
+                    document.addEventListener('keydown', (e) => {
+                        if (!hoverItem || !hoverCode) return;
+                        if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+                        const key = e.key.toLowerCase();
+                        if (key !== 'w' && key !== 'v' && key !== 'l') return;
+                        if (e.ctrlKey || e.metaKey || e.altKey) return;
+                        const dummyBtn = document.createElement('span');
+                        dummyBtn.style.display = 'none';
+                        if (key === 'w') { e.preventDefault(); jbToggleWantWatch(hoverItem, hoverCode, dummyBtn); }
+                        else if (key === 'v') { e.preventDefault(); jbMarkWatched(hoverItem, hoverCode, dummyBtn); }
+                        else if (key === 'l') { e.preventDefault(); jbSaveToList(hoverItem, hoverCode, dummyBtn); }
+                    }, true);
                 }
 
                 // 标记为已处理
