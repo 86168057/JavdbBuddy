@@ -2,7 +2,7 @@
 // @name         Javdb全能助手
 // @name:en      JavdbBuddy
 // @namespace    https://github.com/86168057/JavdbBuddy
-// @version        1.2.6
+// @version        1.2.7
 // @description  JAVDB 一站式增强 Tampermonkey 用户脚本，集成 Emby / Jellyfin 入库状态同步、预览图查看、磁力链管理、多站点快捷搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单等功能。
 // @description:en  JavdbBuddy - JAVDB All-in-One Assistant: Emby / Jellyfin library sync, preview images, magnet links, multi-site search, Hot/Top250/FC2PPV, all reviews, related lists
 // @description:zh-CN  JAVDB + Emby / Jellyfin 联动脚本：实时同步入库状态、预览图查看、磁力链管理、多站点搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单
@@ -2007,7 +2007,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         overlay.id = 'emby-settings-overlay';
         overlay.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;';
         
-        const version = typeof GM_info !== 'undefined' && GM_info.script?.version && GM_info.script.version !== '0' ? GM_info.script.version : '1.2.6';
+        const version = typeof GM_info !== 'undefined' && GM_info.script?.version && GM_info.script.version !== '0' ? GM_info.script.version : '1.2.7';
         // 读取通用设置（必须在 HTML 模板之前定义，否则会导致 Temporal Dead Zone 错误）
         const enableHoverZoom = GM_getValue('jb_enable_hover_zoom', false);
         const openInNewTab = GM_getValue('jb_open_in_new_tab', false);
@@ -5192,8 +5192,8 @@ if (Hls.isSupported()) {
         <div class="dual-magnet-modal" style="padding: 0;">
             <!-- 磁力来源横向标签：点击对应标签展示该站点的磁力连接列表 -->
             <div class="dual-magnet-tabs" style="display: flex; margin-bottom: 12px; gap: 6px; flex-wrap: wrap;">
-                <button id="javdb-tab-btn" class="dual-tab-btn active" style="padding: 7px 12px; border: none; background: #ff6b6b; color: #fff; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 13px;">JAVDB <span id="javdb-count" style="background: rgba(255,255,255,0.25); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 4px;">…</span></button>
-                <button id="javbus-tab-btn" class="dual-tab-btn" style="padding: 7px 12px; border: none; background: #e2e8f0; color: #555; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 13px;">JAVBUS <span id="javbus-count" style="background: rgba(0,0,0,0.15); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 4px;">…</span></button>            </div>
+                <button id="javdb-tab-btn" class="dual-tab-btn jb-bt-chip active" data-engine="javdb" style="padding: 7px 14px; border: none; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-weight: 600; cursor: pointer; border-radius: 18px; font-size: 13px;">JAVDB <span class="jb-bt-chip-badge" id="javdb-count" style="background: rgba(255,255,255,0.3); padding: 0 5px; border-radius: 9px; font-size: 11px; margin-left: 4px;">…</span></button>
+                <button id="javbus-tab-btn" class="dual-tab-btn jb-bt-chip" data-engine="javbus" style="padding: 7px 14px; border: none; background: #f0f2f5; color: #555; font-weight: 600; cursor: pointer; border-radius: 18px; font-size: 13px;">JAVBUS <span class="jb-bt-chip-badge" id="javbus-count" style="background: rgba(0,0,0,0.12); padding: 0 5px; border-radius: 9px; font-size: 11px; margin-left: 4px;">…</span></button>            </div>
 
             <!-- JAVDB 内容区域 -->
             <div id="javdb-content" class="tab-content" style="display: block;">
@@ -5256,13 +5256,13 @@ if (Hls.isSupported()) {
                     const el = document.getElementById(k + '-content');
                     if (el) el.style.display = (k === name || (name !== 'javdb' && name !== 'javbus' && k === 'bt')) ? 'block' : 'none';
                 });
-                document.querySelectorAll('#emby-modal-body .dual-tab-btn').forEach(b => { b.style.background = '#e2e8f0'; b.style.color = '#555'; });
+                document.querySelectorAll('#emby-modal-body .dual-tab-btn').forEach(b => { b.classList.remove('active'); b.style.background = '#f0f2f5'; b.style.color = '#555'; });
                 if (name === 'javdb' || name === 'javbus') {
+                    const tabsRow = document.querySelector('#emby-modal-body .dual-magnet-tabs');
+                    if (tabsRow) tabsRow.querySelectorAll('.jb-bt-chip').forEach(ch => ch.classList.remove('active'));
                     const active = document.getElementById(name === 'javdb' ? 'javdb-tab-btn' : 'javbus-tab-btn');
-                    if (active) { active.style.background = '#9c27b0'; active.style.color = '#fff'; }
+                    if (active) { active.classList.add('active'); active.style.background = 'linear-gradient(135deg, #667eea, #764ba2)'; active.style.color = '#fff'; }
                 }
-                const btEl = document.getElementById('bt-content');
-                if (btEl) btEl.querySelectorAll('.jb-bt-chip').forEach(ch => ch.classList.remove('active'));
             };
             const bindTab = (id, name) => {
                 const b = document.getElementById(id);
@@ -5281,10 +5281,9 @@ if (Hls.isSupported()) {
                 const tabsRow = document.querySelector('#emby-modal-body .dual-magnet-tabs');
                 if (tabsRow) {
                     renderBtSearchPanel(btContent, videoCode, tabsRow, {
-                        lazy: true,
                         onEngineSelect: (key) => {
                             setTab('bt');
-                            document.querySelectorAll('#emby-modal-body .dual-tab-btn').forEach(b => { b.style.background = '#e2e8f0'; b.style.color = '#555'; });
+                            document.querySelectorAll('#emby-modal-body .dual-tab-btn').forEach(b => { b.classList.remove('active'); b.style.background = '#f0f2f5'; b.style.color = '#555'; });
                         }
                     });
                 }
@@ -9474,138 +9473,36 @@ if (Hls.isSupported()) {
             dualTabsContainer.style.cssText = `
                 margin: 15px 0 10px 0;
                 display: flex;
+                align-items: center;
                 gap: 8px;
                 background: transparent;
                 padding: 0;
             `;
             
-            // JAVDB标签按钮
-            const javdbTab = document.createElement('button');
-            javdbTab.className = 'javdb-tab active';
-            javdbTab.innerHTML = `🔥 JAVDB 磁力链 <span id="javdb-magnet-badge" style="
-                position: absolute;
-                top: -6px;
-                right: -8px;
-                background: #FF9800;
-                color: white;
-                border-radius: 50%;
-                width: 20px;
-                height: 20px;
-                display: none;
-                align-items: center;
-                justify-content: center;
-                font-size: 11px;
-                font-weight: bold;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-                z-index: 10;
-            "></span>`;
-            javdbTab.style.cssText = `
-                padding: 6px 12px;
-                border: none;
-                background: white;
-                color: #667eea;
-                cursor: pointer;
-                font-weight: 700;
-                font-size: 13px;
-                text-align: center;
-                border-radius: 6px;
-                transition: all 0.3s ease;
-                margin: 0;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                position: relative;
-                overflow: visible;
-            `;
-            
-            // 添加微妙的内阴影效果
-            javdbTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)';
-            
+            // JAVDB标签（与 BT 标签统一样式）
+            const javdbTab = document.createElement('div');
+            javdbTab.className = 'jb-bt-chip active';
+            javdbTab.dataset.engine = 'javdb';
+            javdbTab.innerHTML = '<span>JAVDB</span><span class="jb-bt-chip-badge" id="javdb-magnet-badge"></span>';
             javdbTab.onclick = function() {
+                dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) { bt.classList.remove('active'); });
+                javdbTab.classList.add('active');
                 showJAVDBMagnets();
                 btMagnetsContainer.style.display = 'none';
-                javdbTab.style.background = 'white';
-                javdbTab.style.color = '#667eea';
-                javdbTab.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.2)';
-                javbusTab.style.background = 'white';
-                javbusTab.style.color = '#999';
-                javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) {
-                    bt.classList.remove('active');
-                });
-                
-                // 取消超时检查
-                if (javdbLoadTimeout) {
-                    clearTimeout(javdbLoadTimeout);
-                    javdbLoadTimeout = null;
-                }
+                if (javdbLoadTimeout) { clearTimeout(javdbLoadTimeout); javdbLoadTimeout = null; }
             };
             
-            // JAVBUS标签按钮
-            const javbusTab = document.createElement('button');
-            javbusTab.className = 'javdb-tab';
-            javbusTab.innerHTML = `🧲 JAVBUS 磁力链 <span id="javbus-magnet-badge" style="
-                position: absolute;
-                top: -6px;
-                right: -8px;
-                background: #4CAF50;
-                color: white;
-                border-radius: 50%;
-                width: 20px;
-                height: 20px;
-                display: none;
-                align-items: center;
-                justify-content: center;
-                font-size: 11px;
-                font-weight: bold;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-                z-index: 10;
-            "></span>`;
-            javbusTab.style.cssText = `
-                padding: 6px 12px;
-                border: none;
-                background: white;
-                color: #999;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 13px;
-                text-align: center;
-                border-radius: 6px;
-                transition: all 0.3s ease;
-                margin: 0;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                position: relative;
-                overflow: visible;
-            `;
-            
+            // JAVBUS标签（与 BT 标签统一样式）
+            const javbusTab = document.createElement('div');
+            javbusTab.className = 'jb-bt-chip';
+            javbusTab.dataset.engine = 'javbus';
+            javbusTab.innerHTML = '<span>JAVBUS</span><span class="jb-bt-chip-badge" id="javbus-magnet-badge"></span>';
             javbusTab.onclick = function() {
+                dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) { bt.classList.remove('active'); });
+                javbusTab.classList.add('active');
                 showJAVBUSMagnets(videoCode);
                 btMagnetsContainer.style.display = 'none';
-                javbusTab.style.background = 'white';
-                javbusTab.style.color = '#667eea';
-                javbusTab.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.2)';
-                javdbTab.style.background = 'white';
-                javdbTab.style.color = '#999';
-                javdbTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) {
-                    bt.classList.remove('active');
-                });
             };
-            
-            // 添加悬停效果
-            [javdbTab, javbusTab].forEach(tab => {
-                tab.addEventListener('mouseenter', function() {
-                    this.style.transform = 'translateY(-2px)';
-                    this.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-                });
-                
-                tab.addEventListener('mouseleave', function() {
-                    this.style.transform = 'translateY(0)';
-                    if (this.classList.contains('active')) {
-                        this.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.2)';
-                    } else {
-                        this.style.boxShadow = '0 2px 6px rgba(0,0,0,0.08)';
-                    }
-                });
-            });
             
             dualTabsContainer.appendChild(javdbTab);
             dualTabsContainer.appendChild(javbusTab);
@@ -9665,7 +9562,6 @@ if (Hls.isSupported()) {
             // 点击站点标签直接显示对应磁力列表（不再渲染第二排重复标签；改为点击时才加载，避免请求风暴）
             if (GM_getValue('jb_enable_bt_search', true)) {
                 renderBtSearchPanel(btMagnetsContainer, videoCode, dualTabsContainer, {
-                    lazy: true,
                     onEngineSelect: function(key) {
                         window.__dualMagnetHandling = true;
                         magnetTabContent.style.display = 'none';
@@ -9673,12 +9569,8 @@ if (Hls.isSupported()) {
                         manualLoadBtn.style.display = 'none';
                         btMagnetsContainer.style.display = 'block';
                         setTimeout(function() { window.__dualMagnetHandling = false; }, 0);
-                        javdbTab.style.background = 'white';
-                        javdbTab.style.color = '#999';
-                        javdbTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                        javbusTab.style.background = 'white';
-                        javbusTab.style.color = '#999';
-                        javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                        javdbTab.classList.remove('active');
+                        javbusTab.classList.remove('active');
                     }
                 });
             }
@@ -9707,18 +9599,9 @@ if (Hls.isSupported()) {
                     javbusMagnetsContainer.style.display = 'none';
                     manualLoadBtn.style.display = 'none';
                     btMagnetsContainer.style.display = 'none';
-                    // 重置标签按钮样式为 JAVDB 激活
+                    // 重置标签为 JAVDB 激活
+                    dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) { bt.classList.remove('active'); });
                     javdbTab.classList.add('active');
-                    javdbTab.style.background = 'white';
-                    javdbTab.style.color = '#667eea';
-                    javdbTab.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.2)';
-                    javbusTab.classList.remove('active');
-                    javbusTab.style.background = 'white';
-                    javbusTab.style.color = '#999';
-                    javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                    dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) {
-                        bt.classList.remove('active');
-                    });
                 }
             }
             const magnetTabObserver = new MutationObserver(syncMagnetTabVisibility);
