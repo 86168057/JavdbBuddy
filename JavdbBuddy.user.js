@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Javdb全能助手
 // @name:en      JavdbBuddy
-// @namespace    https://github.com/86168057/JavdbBuddy// @version        1.2.4
+// @namespace    https://github.com/86168057/JavdbBuddy
+// @version        1.2.6
 // @description  JAVDB 一站式增强 Tampermonkey 用户脚本，集成 Emby / Jellyfin 入库状态同步、预览图查看、磁力链管理、多站点快捷搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单等功能。
 // @description:en  JavdbBuddy - JAVDB All-in-One Assistant: Emby / Jellyfin library sync, preview images, magnet links, multi-site search, Hot/Top250/FC2PPV, all reviews, related lists
 // @description:zh-CN  JAVDB + Emby / Jellyfin 联动脚本：实时同步入库状态、预览图查看、磁力链管理、多站点搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单
@@ -791,7 +792,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         });
     })();
 
-    // ---------- 识图（Google 以图搜图，支持拖拽/点击/粘贴上传） ----------
+    // ---------- 识图（Google 以图搜图，支持点击/拖拽/粘贴上传） ----------
     function jbOpenImageSearch() {
         // 作用域桥接：核心函数在更深层作用域，这里映射到 window 挂载的实例
         const showModal = window.jbShowModalFn;
@@ -807,55 +808,84 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                 <input type="file" id="jb-imgsearch-file" accept="image/*" style="display:none;">
                 <div id="jb-imgsearch-status" style="text-align:center;margin-top:14px;color:#666;font-size:13px;min-height:20px;"></div>
             `);
-            // 不再预开标签页：上传成功后用 GM_openInTab 打开（不受弹窗拦截限制）
 
             const drop = document.getElementById('jb-imgsearch-drop');
             const fileInput = document.getElementById('jb-imgsearch-file');
             const status = document.getElementById('jb-imgsearch-status');
             if (!drop || !fileInput) return;
 
+            // 结果窗口在「用户手势」中预开（点击选择/拖拽/粘贴都是用户手势），
+            // 之后用表单提交把图片 POST 到 Google（浏览器原生导航：带完整 cookie/代理，不会被弹窗拦截、不会 403）
+            let resultWin = null;
+            const TARGET = 'jb_google_lens_result';
+            const openResultWindow = () => {
+                if (resultWin && !resultWin.closed) return resultWin;
+                try { resultWin = window.open('', TARGET, 'width=1000,height=700'); } catch (e) { resultWin = null; }
+                if (resultWin && !resultWin.closed) {
+                    try {
+                        resultWin.document.open();
+                        resultWin.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Google 识图</title></head><body style="font:14px Arial,sans-serif;text-align:center;margin-top:22vh;color:#666;background:#fff;">🖼️ 正在上传图片到 Google 以图搜图，请稍候…<br><small style="color:#999;">若长时间停留在此页，请回到原页面重新上传一次</small></body></html>');
+                        resultWin.document.close();
+                    } catch (e) {}
+                }
+                return resultWin;
+            };
+            const closeResultWindow = () => {
+                try {
+                    if (resultWin && !resultWin.closed && /^about:blank$/i.test(String(resultWin.location.href))) resultWin.close();
+                } catch (e) {}
+                resultWin = null;
+            };
+
             const setHighlight = (on) => {
                 drop.style.borderColor = on ? '#7c4dff' : '#9e9e9e';
                 drop.style.background = on ? '#f1ebff' : '#fafbfc';
             };
-            drop.onclick = () => fileInput.click();
+            // 先开结果窗口（此时仍是用户手势），再弹出文件选择框
+            drop.onclick = () => { openResultWindow(); fileInput.click(); };
             drop.ondragenter = (e) => { e.preventDefault(); e.stopPropagation(); setHighlight(true); };
             drop.ondragover = (e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; setHighlight(true); };
             drop.ondragleave = () => setHighlight(false);
             drop.ondrop = (e) => {
                 e.preventDefault(); e.stopPropagation(); setHighlight(false);
                 const f = e.dataTransfer.files && e.dataTransfer.files[0];
-                if (f) jbSearchImageByFile(f, status);
+                if (f) jbSearchImageByFile(f, status, openResultWindow);
             };
             fileInput.onchange = () => {
                 const f = fileInput.files && fileInput.files[0];
-                if (f) jbSearchImageByFile(f, status);
+                if (f) jbSearchImageByFile(f, status, openResultWindow);
             };
             // 粘贴支持：弹窗打开期间监听 Ctrl+V
             const pasteHandler = (e) => {
-                if (!isModalVisible()) return;
+                if (typeof isModalVisible === 'function' && !isModalVisible()) return;
                 const items = e.clipboardData && e.clipboardData.items;
                 if (!items) return;
                 for (let i = 0; i < items.length; i++) {
                     if (items[i].type.indexOf('image') !== -1) {
                         e.preventDefault();
                         const blob = items[i].getAsFile();
-                        if (blob) { if (status) status.innerHTML = '📋 已粘贴，正在上传...'; jbSearchImageByFile(blob, status); }
+                        if (blob) { if (status) status.innerHTML = '📋 已粘贴，正在上传...'; jbSearchImageByFile(blob, status, openResultWindow); }
                         return;
                     }
                 }
             };
             document.addEventListener('paste', pasteHandler);
-            const watchClose = setInterval(() => { if (!isModalVisible()) { document.removeEventListener('paste', pasteHandler); clearInterval(watchClose); } }, 300);
+            const watchClose = setInterval(() => {
+                if (typeof isModalVisible === 'function' && !isModalVisible()) {
+                    document.removeEventListener('paste', pasteHandler);
+                    closeResultWindow();
+                    clearInterval(watchClose);
+                }
+            }, 300);
         } catch (e) {
             console.warn('JavdbBuddy: 识图弹窗打开失败', e);
         }
     }
 
-        // Google 以图搜图：优先用原生表单提交（真正浏览器导航、带完整 cookie、不被 Google 风控拦截、不会 403），
-        // 上传后自动打开结果页；window.open 被弹窗拦截时回退到 GM_xmlhttpRequest + GM_openInTab。
-        // 必须在用户手势同步栈中调用（文件选择 / 拖拽 / 粘贴事件），才能正常开新标签页。
-    function jbSearchImageByFile(file, statusEl) {
+    // Google 以图搜图上传：
+    // 方案一（首选）：表单提交到「已在用户手势里预开」的结果窗口（浏览器原生导航，带完整 cookie/代理，不 403、不被弹窗拦截）
+    // 方案二（兜底）：window.open 被拦截时改用 GM_xmlhttpRequest 上传 + GM_openInTab 打开结果页
+    function jbSearchImageByFile(file, statusEl, openResultWindow) {
         try {
             if (!file || !/^image\//i.test(file.type || '')) {
                 if (statusEl) statusEl.innerHTML = '⚠️ 请选择有效的图片文件';
@@ -865,18 +895,10 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
 
             const targetName = 'jb_google_lens_result';
 
-            // 方案一：在用户手势同步栈中打开结果窗口 + 原生表单提交
+            // 方案一：原生表单提交到预开窗口
             let win = null;
-            try {
-                win = window.open('', targetName, 'width=1000,height=700');
-            } catch (e) { win = null; }
+            try { win = (typeof openResultWindow === 'function') ? openResultWindow() : null; } catch (e) { win = null; }
             if (win && !win.closed) {
-                try {
-                    win.document.open();
-                    win.document.write('<title>Google 识图</title><p style="font:14px Arial,sans-serif;text-align:center;margin-top:20vh;color:#666;">正在上传图片，请稍候...</p>');
-                    win.document.close();
-                } catch (e) {}
-                // 构造隐藏文件输入并赋值（DataTransfer 兼容）
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.name = 'encoded_image';
@@ -897,11 +919,11 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                 form.submit();
                 setTimeout(() => form.remove(), 3000);
                 if (statusEl) statusEl.innerHTML = '✅ 已上传，正在打开识图结果...';
-                setTimeout(() => { if (isModalVisible()) hideModal(); }, 600);
+                setTimeout(() => { try { if (isModalVisible()) hideModal(); } catch (e) {} }, 600);
                 return;
             }
 
-            // 方案二：弹窗被拦截，改用 GM_xmlhttpRequest 上传 + GM_openInTab 打开（不受弹窗拦截限制）
+            // 方案二：GM_xmlhttpRequest 上传 + GM_openInTab 打开（不受弹窗拦截限制）
             const formData = new FormData();
             formData.append('encoded_image', file, file.name || 'image.jpg');
             GM_xmlhttpRequest({
@@ -916,27 +938,29 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
                 },
                 timeout: 30000,
-                followRedirects: false,
+                redirect: 'follow',
                 onload: (resp) => {
+                    const status = resp.status || 0;
                     let loc = '';
-                    const h = (resp.responseHeaders || '').split(/\r?\n/);
-                    for (const line of h) {
-                        if (/^location:/i.test(line.trim())) {
-                            loc = line.trim().replace(/^location:\s*/i, '');
-                            break;
+                    try { loc = resp.finalUrl || resp.responseURL || ''; } catch (e) {}
+                    if (!loc) {
+                        const h = (resp.responseHeaders || '').split(/\r?\n/);
+                        for (const line of h) {
+                            if (/^location:/i.test(line.trim())) {
+                                loc = line.trim().replace(/^location:\s*/i, '');
+                                break;
+                            }
                         }
                     }
                     if (loc && loc.startsWith('/')) loc = 'https://www.google.com' + loc;
-                    const status = resp.status || 0;
-                    const isRedirect = status >= 300 && status < 400;
-                    if (loc && isRedirect && !/login|sign_in|sorry/i.test(loc)) {
-                        if (typeof GM_openInTab === 'function') {
-                            GM_openInTab(loc, { active: true, insert: true });
-                        } else {
-                            window.open(loc, '_blank');
-                        }
+                    const bad = /searchbyimage\/upload|(^|\/)(accounts\.google\.com|consent\.google\.com|sorry\.google\.com|support\.google\.com)(\/|$)/i;
+                    if (loc && !bad.test(loc)) {
+                        if (typeof GM_openInTab === 'function') GM_openInTab(loc, { active: true, insert: true });
+                        else window.open(loc, '_blank');
                         if (statusEl) statusEl.innerHTML = '✅ 已上传，正在打开识图结果...';
-                        setTimeout(() => { if (isModalVisible()) hideModal(); }, 600);
+                        setTimeout(() => { try { if (isModalVisible()) hideModal(); } catch (e) {} }, 600);
+                    } else if (loc) {
+                        if (statusEl) statusEl.innerHTML = '⚠️ Google 要求验证（' + status + '），请先访问 google.com 再试';
                     } else {
                         if (statusEl) statusEl.innerHTML = '⚠️ 上传被 Google 拒绝（' + status + '），请稍后重试';
                     }
@@ -1983,7 +2007,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         overlay.id = 'emby-settings-overlay';
         overlay.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;';
         
-        const version = typeof GM_info !== 'undefined' && GM_info.script?.version ? GM_info.script.version : '0.7.0';
+        const version = typeof GM_info !== 'undefined' && GM_info.script?.version && GM_info.script.version !== '0' ? GM_info.script.version : '1.2.6';
         // 读取通用设置（必须在 HTML 模板之前定义，否则会导致 Temporal Dead Zone 错误）
         const enableHoverZoom = GM_getValue('jb_enable_hover_zoom', false);
         const openInNewTab = GM_getValue('jb_open_in_new_tab', false);
@@ -2233,11 +2257,11 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                                 <p style="margin:0 0 25px 0;color:#999;font-size:12px;">Version ${version}</p>
                                 <div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap;">
                                     <div>
-                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="微信" onclick="window.open(this.src,'_blank')">
+                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="微信" onclick="jbZoomQr(this.src,this.alt)">
                                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">微信</p>
                                     </div>
                                     <div>
-                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E6%94%AF%E4%BB%98%E5%AE%9D%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="支付宝" onclick="window.open(this.src,'_blank')">
+                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E6%94%AF%E4%BB%98%E5%AE%9D%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="支付宝" onclick="jbZoomQr(this.src,this.alt)">
                                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">支付宝</p>
                                     </div>
                                 </div>
@@ -3736,7 +3760,7 @@ if (Hls.isSupported()) {
 
         const btn = document.createElement('span');
         btn.className = 'online-play-btn';
-        btn.innerHTML = '▶ 播放';
+        btn.textContent = '播放';
         btn.title = '点击播放';
         btn.style.cssText = 'cursor:pointer;padding:2px 8px;color:#8bc34a;';
         btn.onclick = (e) => {
@@ -3744,6 +3768,137 @@ if (Hls.isSupported()) {
             e.stopPropagation();
             // 优先MISSAV，直接打开播放
             showDirectPlayer(videoCode, 'MISSAV');
+        };
+        container.appendChild(btn);
+    }
+
+    // ====== 预告片（移植自 JAV老司机-新：javxy.cc.cd 预告片源 + 沉浸式播放器外观） ======
+    function jbTrailerToken() {
+        return [118,119,112,71,97,110,28,84,124,65,76,102,65,16,77,109,64,82,85,83,67,92,125,108,83,65,124,107,84,104,71,84,17,124,118,125,104,8,125,96,112,103,29,18,82,83,87,84].map(v => String.fromCharCode(v ^ 0x25)).join('');
+    }
+    function jbTrailerGet(code) {
+        return new Promise((resolve) => {
+            // 依次尝试「无需日本 IP 的源（JavTrailers）」→「默认源（DMM）」，每个源再依次尝试主节点与 Worker 节点
+            const hosts = ['javxy.cc.cd', 'worker.javxy.cc.cd'];
+            const query = encodeURIComponent(String(code || '').trim());
+            const sourceList = ['JavTrailers', ''];
+            const trySource = (si) => {
+                if (si >= sourceList.length) return resolve(null);
+                const srcParam = sourceList[si] ? '&source=' + sourceList[si] : '';
+                const tryHost = (i) => {
+                    if (i >= hosts.length) return trySource(si + 1);
+                    GM_xmlhttpRequest({
+                        method: 'GET',
+                        url: 'https://' + hosts[i] + '/trailers/' + query + '?client=laosiji-new' + srcParam,
+                        headers: { 'Accept': 'application/json,text/plain,*/*', 'X-Javxy-Token': jbTrailerToken() },
+                        timeout: 10000,
+                        onload: (r) => {
+                            if (r.status < 200 || r.status >= 400) return tryHost(i + 1);
+                            try {
+                                const data = JSON.parse(r.responseText);
+                                const trailerUrl = String(data?.trailer || '').trim();
+                                if (!trailerUrl || data?.error) return tryHost(i + 1);
+                                const qm = (data?.qualities && typeof data.qualities === 'object') ? data.qualities : {};
+                                const keys = Object.keys(qm);
+                                const quality = (data?.quality && qm[data.quality]) ? data.quality : (keys.length ? keys[0] : null);
+                                const src = qm[quality] || trailerUrl;
+                                resolve({ url: src, qualities: qm, quality: quality, source: String(data?.source || 'dmm'), type: String(data?.type || 'video') });
+                            } catch (e) { tryHost(i + 1); }
+                        },
+                        onerror: () => tryHost(i + 1),
+                        ontimeout: () => tryHost(i + 1)
+                    });
+                };
+                tryHost(0);
+            };
+            trySource(0);
+        });
+    }
+
+    // 预告片播放器：当前页沉浸式弹层（深色标题栏 + 居中播放器 + 画质选择 + 自动隐藏控制栏）
+    function jbShowTrailer(code) {
+        if (!code) return;
+        const overlay = document.createElement('div');
+        overlay.className = 'jb-trailer-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Arial,sans-serif;';
+        overlay.innerHTML = `
+            <div class="jb-trailer-topbar" style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(0,0,0,0.8),transparent);z-index:2;">
+                <span style="color:#ffd166;font-weight:700;font-size:14px;">🎞️ 预告片</span>
+                <span class="jb-trailer-code" style="color:#fff;font-weight:700;font-size:14px;">${jbEscapeHtml(code)}</span>
+                <span class="jb-trailer-source" style="color:#999;font-size:12px;"></span>
+                <span style="flex:1"></span>
+                <span class="jb-trailer-close" style="cursor:pointer;color:#fff;font-size:22px;line-height:1;padding:2px 10px;border-radius:8px;background:rgba(255,255,255,0.12);">✕</span>
+            </div>
+            <div class="jb-trailer-stage" style="width:min(1100px,94vw);height:min(600px,86vh);position:relative;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.08);">
+                <div class="jb-trailer-loading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:14px;">
+                    <div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.2);border-top-color:#ffd166;border-radius:50%;animation:jbTrailerSpin .8s linear infinite;"></div>
+                    <div>正在解析预告片地址...</div>
+                </div>
+                <video class="jb-trailer-video" controls style="width:100%;height:100%;object-fit:contain;background:#000;display:none;"></video>
+            </div>
+            <div class="jb-trailer-footer" style="position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#777;font-size:12px;">点击空白处或按 ESC 关闭</div>
+            <style>@keyframes jbTrailerSpin{to{transform:rotate(360deg)}}</style>
+        `;
+        document.body.appendChild(overlay);
+        const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+        overlay.querySelector('.jb-trailer-close').onclick = close;
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+        const video = overlay.querySelector('.jb-trailer-video');
+        const loading = overlay.querySelector('.jb-trailer-loading');
+        const srcEl = overlay.querySelector('.jb-trailer-source');
+        jbTrailerGet(code).then(res => {
+            if (!overlay.isConnected) return;
+            if (!res || !res.url) {
+                loading.innerHTML = '<div style="color:#e74c3c;">未找到可用预告片</div><div style="font-size:12px;color:#888;">可点击“在线播放”观看完整影片</div>';
+                return;
+            }
+            srcEl.textContent = '来源：' + (res.source || 'Javxy');
+            const url = res.url;
+            const isHls = /.m3u8(?:[?#].*)?$/i.test(url) || String(res.type).toLowerCase() === 'hls';
+            const play = () => { video.style.display = 'block'; loading.style.display = 'none'; video.play().catch(() => {}); };
+            const tryHls = () => {
+                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                    const hls = new Hls({ maxBufferLength: 30 });
+                    hls.loadSource(url);
+                    hls.attachMedia(video);
+                    hls.on(Hls.Events.MANIFEST_PARSED, play);
+                    hls.on(Hls.Events.ERROR, (ev, data) => { if (data.fatal) { loading.innerHTML = '<div style="color:#e74c3c;">预告片加载失败</div><div style="font-size:12px;color:#999;margin-top:8px;">已优先尝试无需日本 IP 的源（JavTrailers），仍失败可能是该源暂不可用，可稍后重试</div>'; } });
+                    return true;
+                }
+                return false;
+            };
+            if (isHls) {
+                if (!tryHls()) {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.3/dist/hls.min.js';
+                    s.onload = () => { if (!tryHls()) { video.src = url; video.addEventListener('loadedmetadata', play); } };
+                    s.onerror = () => { video.src = url; video.addEventListener('loadedmetadata', play); };
+                    document.head.appendChild(s);
+                }
+            } else {
+                video.src = url;
+                video.addEventListener('loadedmetadata', play);
+            }
+        });
+    }
+
+    // 列表页/详情页预告片快捷按钮（放在“在线播放”前）
+    function addTrailerButton(container, itemEl, videoCode) {
+        if (!videoCode || container.querySelector('.trailer-btn')) return;
+        const btn = document.createElement('span');
+        btn.className = 'trailer-btn';
+        btn.textContent = '预告片';
+        btn.title = '播放预告片';
+        btn.style.cssText = 'cursor:pointer;padding:2px 6px;font-size:12px;';
+        btn.onclick = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            btn.textContent = '解析中...';
+            btn.style.pointerEvents = 'none'; btn.style.opacity = '0.7';
+            jbShowTrailer(videoCode);
+            setTimeout(() => { if (btn.isConnected) { btn.textContent = '预告片'; btn.style.pointerEvents = ''; btn.style.opacity = ''; } }, 1200);
         };
         container.appendChild(btn);
     }
@@ -4227,7 +4382,7 @@ if (Hls.isSupported()) {
     function addPreviewToggle(container, itemEl, videoCode) {
         const toggleBtn = document.createElement('span');
         toggleBtn.className = 'preview-toggle-btn';
-        toggleBtn.textContent = '🖼️ 预览图';
+        toggleBtn.textContent = '预览图';
         
         // 按钮进入视口时预加载预览图（限制总预加载数防验证；截图长图模式无需预加载 JavDB）
         const preloadObserver = new IntersectionObserver((entries) => {
@@ -4260,7 +4415,7 @@ if (Hls.isSupported()) {
     function addMagnetToggle(container, itemEl, videoCode) {
         const toggleBtn = document.createElement('span');
         toggleBtn.className = 'magnet-toggle-btn';
-        toggleBtn.textContent = '🧲 磁力链';
+        toggleBtn.textContent = '磁力链';
 
         // [新增] 后台预加载 JAVBUS + JAVDB 磁力链 - 按钮进入视口时提前加载（限制总预加载数防验证）
         const needPreload = (!JAVBUS_CACHE[videoCode] || !JAVDB_CACHE[videoCode]);
@@ -4297,7 +4452,7 @@ if (Hls.isSupported()) {
         if (container.querySelector('.copy-code-btn')) return;
         const btn = document.createElement('span');
         btn.className = 'copy-code-btn';
-        btn.textContent = '📋 复制番号';
+        btn.textContent = '复制番号';
         btn.title = '复制番号到剪贴板';
         btn.style.cssText = 'display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 3px; font-size: 12px; cursor: pointer; background-color: #607D8B; color: white; white-space: nowrap; transition: all 0.2s;';
         btn.onmouseenter = () => { btn.style.backgroundColor = '#455A64'; };
@@ -4305,8 +4460,8 @@ if (Hls.isSupported()) {
         btn.onclick = (e) => {
             e.preventDefault(); e.stopPropagation();
             navigator.clipboard.writeText(videoCode).then(() => {
-                btn.textContent = '✅ 已复制';
-                setTimeout(() => { btn.textContent = '📋 复制番号'; }, 1500);
+                btn.textContent = '已复制';
+                setTimeout(() => { btn.textContent = '复制番号'; }, 1500);
             }).catch(() => {
                 // fallback
                 const ta = document.createElement('textarea');
@@ -4316,7 +4471,7 @@ if (Hls.isSupported()) {
                 ta.select();
                 document.execCommand('copy');
                 document.body.removeChild(ta);
-                btn.textContent = '✅ 已复制';
+                btn.textContent = '已复制';
                 setTimeout(() => { btn.textContent = '📋 复制番号'; }, 1500);
             });
         };
@@ -4419,7 +4574,7 @@ if (Hls.isSupported()) {
         
         const btn = document.createElement('span');
         btn.className = 'review-toggle-btn';
-        btn.textContent = '📝 短评';
+        btn.textContent = '短评';
         btn.title = '查看短评';
         btn.style.cssText = 'position: relative;';
         
@@ -4486,162 +4641,6 @@ if (Hls.isSupported()) {
         return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
     }
 
-    // 列表页账户按钮的页面级状态缓存；详情页和列表页都以 JavDB 返回的表单为准。
-    const JB_ACCOUNT_STATE = Object.create(null);
-    function jbSetAccountButtonState(btn, type, active) {
-        if (!btn) return;
-        btn.dataset.active = active ? '1' : '0';
-        const labels = {
-            want: active ? '✅ 已想看' : '👀 想看',
-            watched: active ? '✅ 已看过' : '⭐ 看过',
-            list: active ? '📑 已存' : '📑 存入清单'
-        };
-        const colors = { want: '#4CAF50', watched: '#2E7D32', list: '#4CAF50' };
-        btn.textContent = labels[type] || btn.textContent;
-        btn.style.backgroundColor = active ? colors[type] : '#9E9E9E';
-    }
-    function jbPublishAccountState(videoCode, patch) {
-        const key = String(videoCode || '').toUpperCase();
-        JB_ACCOUNT_STATE[key] = Object.assign({}, JB_ACCOUNT_STATE[key] || {}, patch);
-        document.querySelectorAll('.jb-account-actions').forEach(container => {
-            if (String(container.dataset.jbCode || '').toUpperCase() !== key) return;
-            ['want', 'watched', 'list'].forEach(type => {
-                if (JB_ACCOUNT_STATE[key][type] !== undefined) {
-                    jbSetAccountButtonState(container.querySelector(`[data-jb-account-type="${type}"]`), type, JB_ACCOUNT_STATE[key][type]);
-                }
-            });
-        });
-    }
-    function jbFormIsRemoval(form) {
-        if (!form) return false;
-        const method = form.querySelector('input[name="_method"]')?.value || '';
-        const action = form.getAttribute('action') || '';
-        return /^(delete|destroy)$/i.test(method) || /(?:remove|destroy|unwant|unwatch)/i.test(action) || /移除|取消|刪除|删除|已加入|已看过|已看過/.test(form.textContent || '');
-    }
-    function jbLoadAccountState(itemEl, videoCode) {
-        const key = String(videoCode || '').toUpperCase();
-        if (!key || JB_ACCOUNT_STATE[key]?._loading) return;
-        const detailUrl = jbGetDetailUrl(itemEl, videoCode);
-        if (!detailUrl) return;
-        JB_ACCOUNT_STATE[key] = Object.assign({}, JB_ACCOUNT_STATE[key] || {}, { _loading: true });
-        jbFetchWithLimit(detailUrl).then(html => {
-            const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
-            const wantForm = doc.querySelector('form[action*="want_to_watch"], form[action*="want-watch"]');
-            const reviewForm = doc.querySelector('#new_review, #edit_review, form[action*="/reviews"], form[id*="review"]');
-            const checkedScore = reviewForm?.querySelector('[name="video_review[score]"]:checked, [name="review[score]"]:checked, [name="score"]:checked, select option:checked');
-            const score = checkedScore?.value || reviewForm?.querySelector('[name="video_review[score]"], [name="review[score]"], [name="score"]')?.value || '';
-            const listForms = Array.from(doc.querySelectorAll('form[action*="simple_list"], form[action*="/lists"]'));
-            const patch = {
-                want: !!wantForm && jbFormIsRemoval(wantForm),
-                watched: !!score && Number(score) > 0,
-                list: listForms.some(jbFormIsRemoval)
-            };
-            // 某些 JavDB 版本没有 want 表单，而是通过按钮文本表达当前状态。
-            if (!wantForm) patch.want = [...doc.querySelectorAll('a,button')].some(el => /取消想看|已想看/.test(el.textContent || ''));
-            jbPublishAccountState(videoCode, patch);
-        }).catch(() => {}).finally(() => {
-            if (JB_ACCOUNT_STATE[key]) JB_ACCOUNT_STATE[key]._loading = false;
-        });
-    }
-
-    // 提交 Rails button_to 表单（自动携带 authenticity_token，支持 _method 覆写）
-    async function jbSubmitRailsForm(form, baseUrl) {
-        const { csrfToken, action, params } = jbBuildFormRequest(form, baseUrl);
-        const res = await fetch(action, {
-            method: 'POST',
-            body: params.toString(),
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-CSRF-Token': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/javascript, application/javascript, application/json'
-            }
-        });
-        if (!res.ok && res.status !== 302) throw new Error('HTTP ' + res.status);
-        return res;
-    }
-
-    // 解析 Rails 表单为提交请求（提取表单内嵌的 authenticity_token，而非当前页面 meta token）
-    function jbBuildFormRequest(form, baseUrl) {
-        const action = new URL(form.getAttribute('action') || '', baseUrl || location.origin).href;
-        const params = new URLSearchParams();
-        let csrfToken = jbGetCsrfToken();
-        form.querySelectorAll('input, textarea, select').forEach(el => {
-            if (!el.name || el.type === 'submit' || el.type === 'button') return;
-            if (el.type === 'radio' && !el.checked) return;
-            if (el.type === 'checkbox' && !el.checked) return;
-            params.append(el.name, el.value || '');
-            // 表单内嵌的 authenticity_token 优先（详情页抓取场景）
-            if (el.name === 'authenticity_token' && el.value) csrfToken = el.value;
-        });
-        return { csrfToken, action, params };
-    }
-
-    // 从抓取到的详情页 HTML 文档中提取其 CSRF token（跨页面提交时使用）
-    function jbGetDetailCsrf(doc, fallback) {
-        try {
-            const meta = doc.querySelector('meta[name="csrf-token"]');
-            if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
-        } catch (e) {}
-        // 兜底：从表单内嵌 token 解析
-        try {
-            const t = doc.querySelector('input[name="authenticity_token"]');
-            if (t && t.value) return t.value;
-        } catch (e) {}
-        return fallback || '';
-    }
-
-    // 用「原生表单提交」执行 Rails 操作（与详情页按钮行为一致）：把待提交的表单克隆进当前文档，
-    // 经由隐藏 iframe 做一次真正的浏览器导航 POST（完整请求头 + 表单字段 + 会话 token），
-    // 从而绕开手工 fetch/XHR 导致的 500（token、Accept、字段错配均不会再生效）。
-    function jbNativeSubmitForm(form, csrfToken, baseUrl) {
-        return new Promise(resolve => {
-            try {
-                const clone = document.createElement('form');
-                clone.style.display = 'none';
-                clone.method = 'post';
-                clone.action = new URL(form.getAttribute('action') || '/', baseUrl || location.href).href;
-                let method = 'post';
-                const seen = new Set();
-                form.querySelectorAll('input, textarea, select, button').forEach(el => {
-                    // 跳过普通按钮，但保留 named="commit" 的提交按钮值（Rails 提交时常常需要）
-                    if (!el.name) return;
-                    if (el.type === 'button' || el.type === 'image') return;
-                    if (el.type === 'submit' && el.name !== 'commit') return;
-                    if ((el.type === 'radio' || el.type === 'checkbox') && !el.checked) return;
-                    const inp = document.createElement('input');
-                    inp.type = 'hidden';
-                    inp.name = el.name;
-                    inp.value = el.value || '';
-                    // authenticity_token：表单内嵌值优先；否则用传入的会话 token 补齐
-                    if (el.name === 'authenticity_token' && !el.value && csrfToken) inp.value = csrfToken;
-                    clone.appendChild(inp);
-                    seen.add(el.name);
-                    if (el.name === '_method') method = el.value || 'post';
-                });
-                if (!seen.has('authenticity_token') && csrfToken) {
-                    const a = document.createElement('input');
-                    a.type = 'hidden'; a.name = 'authenticity_token'; a.value = csrfToken;
-                    clone.appendChild(a);
-                }
-                const m = clone.querySelector('input[name="_method"]');
-                if (m && /^(delete|patch|put)$/i.test(m.value)) { clone.method = 'post'; method = m.value.toLowerCase(); }
-                document.body.appendChild(clone);
-                const iframe = document.createElement('iframe');
-                iframe.name = 'jb_native_submit'; iframe.style.display = 'none';
-                document.body.appendChild(iframe);
-                clone.target = iframe.name;
-                setTimeout(() => {
-                    try { clone.submit(); } catch (e) { console.warn('JavdbBuddy: 原生提交失败', e); }
-                    setTimeout(() => { iframe.remove(); clone.remove(); resolve(); }, 3500);
-                }, 30);
-            } catch (e) {
-                console.warn('JavdbBuddy: 原生提交构造失败', e);
-                resolve();
-            }
-        });
-    }
     function jbCopyText(text) {
         return new Promise(resolve => {
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -4662,281 +4661,6 @@ if (Hls.isSupported()) {
             document.body.removeChild(ta);
             return true;
         } catch (e) { return false; }
-    }
-
-    // ===== 想看按钮（点击切换 加入/取消） =====
-    function addWantWatchButton(container, itemEl, videoCode) {
-        if (container.querySelector('.want-watch-btn')) return;
-        const btn = document.createElement('span');
-        btn.className = 'want-watch-btn';
-        btn.textContent = '👀 想看';
-        btn.title = '加入/取消想看（需登录 JAVDB）';
-        btn.setAttribute('data-ok', '0');
-        btn.dataset.jbAccountType = 'want';
-        btn.style.cssText = 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;background-color:#9E9E9E;color:white;white-space:nowrap;transition:all 0.2s;';
-        if (JB_ACCOUNT_STATE[String(videoCode).toUpperCase()]?.want !== undefined) jbSetAccountButtonState(btn, 'want', JB_ACCOUNT_STATE[String(videoCode).toUpperCase()].want);
-        btn.onclick = (e) => {
-            e.preventDefault(); e.stopPropagation();
-            jbToggleWantWatch(itemEl, videoCode, btn);
-        };
-        container.appendChild(btn);
-    }
-
-    async function jbToggleWantWatch(itemEl, videoCode, btn) {
-        const detailUrl = jbGetDetailUrl(itemEl, videoCode);
-        if (!detailUrl) { showToast('未找到详情页链接'); return; }
-        const origText = btn.textContent;
-        const origActive = btn.dataset.active === '1';
-        btn.textContent = '⏳ 请稍候...';
-        btn.style.pointerEvents = 'none';
-        try {
-            // 每次都抓取详情页最新状态，保证与详情页按钮完全同步（在详情页取消/加入后回到列表，这里也能读到最新状态）
-            const html = await jbFetchWithLimit(detailUrl);
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            if (!doc.querySelector('a[href*="logout"], a[href*="sign_out"], [data-user-menu], .user-menu')) {
-                showToast('此功能需要先登录 JAVDB 账号');
-                jbSetAccountButtonState(btn, 'want', origActive);
-                btn.textContent = origActive ? '✅ 已想看' : origText;
-                btn.style.pointerEvents = '';
-                return;
-            }
-            const form = doc.querySelector('form[action*="want_to_watch"], form[action*="want-watch"]');
-            if (!form) {
-                showToast('未找到想看表单，请到详情页操作');
-                jbSetAccountButtonState(btn, 'want', origActive);
-                btn.textContent = origActive ? '✅ 已想看' : origText;
-                btn.style.pointerEvents = '';
-                return;
-            }
-            const detailCsrf = jbGetDetailCsrf(doc, jbGetCsrfToken());
-            const isRemove = jbFormIsRemoval(form);
-            await jbNativeSubmitForm(form, detailCsrf, detailUrl);
-            jbInvalidateDetailCache(detailUrl);
-            if (isRemove) {
-                jbPublishAccountState(videoCode, { want: false });
-                jbSetAccountButtonState(btn, 'want', false);
-                showToast('已取消想看');
-            } else {
-                jbPublishAccountState(videoCode, { want: true });
-                jbSetAccountButtonState(btn, 'want', true);
-                showToast('已加入想看');
-            }
-        } catch (err) {
-            showToast('操作失败：' + (err.message || '网络错误'));
-            jbSetAccountButtonState(btn, 'want', origActive);
-            btn.textContent = origActive ? '✅ 已想看' : origText;
-        }
-        btn.style.pointerEvents = '';
-    }
-
-    // ===== 看过按钮（星级评分弹窗） =====
-    function addWatchedButton(container, itemEl, videoCode) {
-        if (container.querySelector('.watched-btn')) return;
-        const btn = document.createElement('span');
-        btn.className = 'watched-btn';
-        btn.textContent = '⭐ 看过';
-        btn.title = '标记看过并评分（需登录 JAVDB）';
-        btn.style.cssText = 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;background-color:#9E9E9E;color:white;white-space:nowrap;transition:all 0.2s;';
-        btn.dataset.jbAccountType = 'watched';
-        if (JB_ACCOUNT_STATE[String(videoCode).toUpperCase()]?.watched !== undefined) jbSetAccountButtonState(btn, 'watched', JB_ACCOUNT_STATE[String(videoCode).toUpperCase()].watched);
-        btn.onclick = (e) => {
-            e.preventDefault(); e.stopPropagation();
-            jbMarkWatched(itemEl, videoCode, btn);
-        };
-        container.appendChild(btn);
-    }
-
-    async function jbMarkWatched(itemEl, videoCode, btn) {
-        const detailUrl = jbGetDetailUrl(itemEl, videoCode);
-        if (!detailUrl) { showToast('未找到详情页链接'); return; }
-        const origText = btn.textContent;
-        btn.textContent = '⏳ 请稍候...';
-        btn.style.pointerEvents = 'none';
-        let form = null;
-        let loggedIn = false;
-        let detailCsrf = jbGetCsrfToken();
-        try {
-            const html = await jbFetchWithLimit(detailUrl);
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            loggedIn = !!doc.querySelector('a[href*="logout"], a[href*="sign_out"], [data-user-menu], .user-menu');
-            const removalForm = Array.from(doc.querySelectorAll('form[action*="/reviews"], form[id*="review"]')).find(jbFormIsRemoval);
-            form = doc.querySelector('#new_review, #edit_review, form[action*="/reviews"], form[id*="review"]');
-            detailCsrf = jbGetDetailCsrf(doc, detailCsrf);
-            if (loggedIn && btn.dataset.active === '1' && removalForm) {
-                await jbNativeSubmitForm(removalForm, detailCsrf, detailUrl);
-                jbInvalidateDetailCache(detailUrl);
-                jbPublishAccountState(videoCode, { watched: false });
-                jbSetAccountButtonState(btn, 'watched', false);
-                showToast('已取消看过');
-                btn.style.pointerEvents = '';
-                return;
-            }
-        } catch (e) {}
-        btn.textContent = origText;
-        btn.style.pointerEvents = '';
-        if (!loggedIn) { showToast('此功能需要先登录 JAVDB 账号'); return; }
-        if (!form) { showToast('未找到评分表单，请到详情页操作'); return; }
-        // 星级选择弹窗
-        jbShowStarPicker(videoCode, async (score) => {
-            btn.textContent = '⏳ 提交中...';
-            btn.style.pointerEvents = 'none';
-            try {
-                // 在解析出的评分表单上覆盖分数，再用原生表单提交（真正的浏览器 POST，与详情页评分一致）
-                const scoreEls = form.querySelectorAll('[name="video_review[score]"], [name="review[score]"], [name="score"]');
-                scoreEls.forEach(scoreEl => {
-                    if (scoreEl.type === 'radio' || scoreEl.type === 'checkbox') scoreEl.checked = scoreEl.value === String(score);
-                    else scoreEl.value = String(score);
-                });
-                await jbNativeSubmitForm(form, detailCsrf, detailUrl);
-                jbInvalidateDetailCache(detailUrl);
-                jbPublishAccountState(videoCode, { watched: true });
-                jbSetAccountButtonState(btn, 'watched', true);
-                showToast('已标记看过（' + score + ' 星）');
-            } catch (err) {
-                showToast('操作失败：' + (err.message || '网络错误'));
-                jbSetAccountButtonState(btn, 'watched', btn.dataset.active === '1');
-                btn.textContent = btn.dataset.active === '1' ? '✅ 已看过' : origText;
-            }
-            btn.style.pointerEvents = '';
-        });
-    }
-
-    // 星级选择弹窗（复用主弹窗）
-    function jbShowStarPicker(videoCode, onSubmit) {
-        showModal(videoCode + ' - 看过评分', `
-            <div style="text-align:center;padding:24px 0;">
-                <div style="color:#666;font-size:14px;margin-bottom:18px;">点击星星为影片评分（将标记为看过）</div>
-                <div id="jb-star-picker" style="display:flex;justify-content:center;gap:12px;font-size:36px;cursor:pointer;user-select:none;">
-                    ${[1, 2, 3, 4, 5].map(i => `<span data-score="${i}" style="color:#d5d8de;transition:color .15s;">★</span>`).join('')}
-                </div>
-                <div id="jb-star-hint" style="color:#999;font-size:12px;margin-top:12px;height:16px;"></div>
-                <div style="color:#bbb;font-size:11px;margin-top:6px;">短评可留空 · 需已登录 JAVDB</div>
-            </div>`);
-        const picker = document.getElementById('jb-star-picker');
-        if (!picker) return;
-        const stars = picker.querySelectorAll('span');
-        const hint = document.getElementById('jb-star-hint');
-        const hints = { 1: '很差', 2: '不好', 3: '一般', 4: '很好', 5: '極好' };
-        stars.forEach(star => {
-            const score = parseInt(star.dataset.score, 10);
-            star.onmouseenter = () => {
-                stars.forEach(s => { s.style.color = parseInt(s.dataset.score, 10) <= score ? '#ffc107' : '#d5d8de'; });
-                if (hint) hint.textContent = score + ' 星 · ' + hints[score];
-            };
-            star.onclick = () => { hideModal(); onSubmit(score); };
-        });
-        picker.onmouseleave = () => {
-            stars.forEach(s => { s.style.color = '#d5d8de'; });
-            if (hint) hint.textContent = '';
-        };
-    }
-
-    // ===== 存入清单按钮 =====
-    function addSaveListButton(container, itemEl, videoCode) {
-        if (container.querySelector('.save-list-btn')) return;
-        const btn = document.createElement('span');
-        btn.className = 'save-list-btn';
-        btn.textContent = '📑 存入清单';
-        btn.title = '存入清单（需登录 JAVDB）';
-        btn.style.cssText = 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:3px;font-size:12px;cursor:pointer;background-color:#9E9E9E;color:white;white-space:nowrap;transition:all 0.2s;';
-        btn.dataset.jbAccountType = 'list';
-        if (JB_ACCOUNT_STATE[String(videoCode).toUpperCase()]?.list !== undefined) jbSetAccountButtonState(btn, 'list', JB_ACCOUNT_STATE[String(videoCode).toUpperCase()].list);
-        btn.onclick = (e) => {
-            e.preventDefault(); e.stopPropagation();
-            jbSaveToList(itemEl, videoCode, btn);
-        };
-        container.appendChild(btn);
-    }
-
-    async function jbSaveToList(itemEl, videoCode, btn) {
-        const detailUrl = jbGetDetailUrl(itemEl, videoCode);
-        if (!detailUrl) { showToast('未找到详情页链接'); return; }
-        const origText = btn.textContent;
-        btn.textContent = '⏳ 请稍候...';
-        btn.style.pointerEvents = 'none';
-        try {
-            // 优先抓取详情页的「存入清单」下拉，保证与详情页按钮看到的是同一批清单（含"移除"态）
-            const html = await jbFetchWithLimit(detailUrl);
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            if (!doc.querySelector('a[href*="logout"], a[href*="sign_out"], [data-user-menu], .user-menu')) {
-                showToast('此功能需要先登录 JAVDB 账号');
-                btn.textContent = origText;
-                btn.style.pointerEvents = '';
-                return;
-            }
-            let forms = Array.from(doc.querySelectorAll('form[action*="simple_list"], form[action*="/lists"]'));
-            if (!forms.length) {
-                // 兜底：从专用接口取
-                const uuidMatch = detailUrl.match(/\/v\/([a-zA-Z0-9]+)/);
-                const r2 = await fetch(location.origin + '/users/simple_lists?vid=' + (uuidMatch ? uuidMatch[1] : ''), { credentials: 'same-origin', headers: { 'X-CSRF-Token': jbGetCsrfToken() } });
-                const ct = r2.headers.get('content-type') || '';
-                if (r2.redirected || (r2.url && r2.url.includes('/login')) || !ct.includes('json')) { showToast('请先登录 JAVDB 账号'); return; }
-                const data = await r2.json();
-                const wrap = document.createElement('div');
-                wrap.innerHTML = data.lists || '';
-                forms = Array.from(wrap.querySelectorAll('form'));
-            }
-            jbShowListPicker(videoCode, forms, detailUrl, btn);
-        } catch (err) {
-            showToast('加载清单失败：' + (err.message || '网络错误'));
-        }
-        btn.textContent = origText;
-        btn.style.pointerEvents = '';
-    }
-
-    // 清单选择弹窗（每张表单对应一个清单；底部提供"新建清单"，与详情页入口一致）
-    function jbShowListPicker(videoCode, forms, detailUrl, btn) {
-        let itemsHtml = '';
-        if (!forms || !forms.length) {
-            itemsHtml = '<div style="color:#999;font-size:13px;text-align:center;padding:14px 6px;">当前还没有清单，可新建后存入</div>';
-        } else {
-            forms.forEach((f, i) => {
-                const label = (f.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 50) || ('清单 ' + (i + 1));
-                itemsHtml += `<div class="jb-list-item" data-idx="${i}" style="padding:10px 14px;margin:6px 0;background:#f5f6f8;border:1px solid #e4e6ea;border-radius:6px;cursor:pointer;font-size:13px;color:#333;transition:all .15s;display:flex;align-items:center;gap:8px;">
-                    <span style="color:#9C27B0;">${label.includes('移除') || label.includes('刪') ? '✔' : '＋'}</span><span>${jbEscapeHtml(label)}</span></div>`;
-            });
-        }
-        // 新建清单条目（前往详情页使用原生新建表单，行为与详情页入口一致）
-        const createRow = detailUrl
-            ? `<div id="jb-list-create" style="margin:8px 0 4px;padding:11px 14px;border:1px dashed #9C27B0;border-radius:6px;cursor:pointer;font-size:13px;color:#9C27B0;font-weight:500;transition:all .15s;display:flex;align-items:center;gap:8px;"><span>＋</span><span>新建清单</span></div>`
-            : '';
-        const hint = (forms && forms.length)
-            ? '<div style="color:#999;font-size:11px;text-align:center;margin-top:4px;">点击清单名称即可存入 · 带移除标记的点击后将移出</div>'
-            : '';
-        showModal(videoCode + ' - 存入清单', `<div style="max-height:56vh;overflow-y:auto;padding:4px 6px;">${itemsHtml}${createRow}${hint}</div>`);
-        document.querySelectorAll('#emby-modal-body .jb-list-item').forEach(el => {
-            el.onmouseenter = () => { el.style.background = '#ede7f6'; el.style.borderColor = '#9C27B0'; };
-            el.onmouseleave = () => { el.style.background = '#f5f6f8'; el.style.borderColor = '#e4e6ea'; };
-            el.onclick = async () => {
-                const f = forms[parseInt(el.dataset.idx, 10)];
-                if (!f) return;
-                el.style.opacity = '0.5';
-                el.style.pointerEvents = 'none';
-                try {
-                    await jbNativeSubmitForm(f, jbGetDetailCsrf(f.ownerDocument, jbGetCsrfToken()), detailUrl);
-                    const listActive = !jbFormIsRemoval(f);
-                    jbInvalidateDetailCache(detailUrl);
-                    jbPublishAccountState(videoCode, { list: listActive });
-                    jbSetAccountButtonState(btn, 'list', listActive);
-                    showToast(listActive ? '清单操作成功' : '已移出清单');
-                    hideModal();
-                } catch (err) {
-                    showToast('操作失败：' + (err.message || '网络错误'));
-                    el.style.opacity = '';
-                    el.style.pointerEvents = '';
-                }
-            };
-        });
-        const createBtn = document.getElementById('jb-list-create');
-        if (createBtn) {
-            createBtn.onmouseenter = () => { createBtn.style.background = '#f3e7ff'; };
-            createBtn.onmouseleave = () => { createBtn.style.background = ''; };
-            createBtn.onclick = () => {
-                hideModal();
-                window.open(detailUrl, '_blank');
-                showToast('已打开详情页，请在右下角清单下拉中新建');
-            };
-        }
     }
 
     // 检测响应错误类型，返回具体原因描述
@@ -5466,21 +5190,10 @@ if (Hls.isSupported()) {
         let html = `
         <div id="actor-header-magnet" style="margin-bottom: 10px;"></div>
         <div class="dual-magnet-modal" style="padding: 0;">
-            <!-- 标签切换按钮 -->
-            <div class="dual-magnet-tabs" style="display: flex; margin-bottom: 15px; border-bottom: 2px solid #f0f0f0;">
-                <button id="javdb-tab-btn" class="dual-tab-btn active" style="flex: 1; padding: 12px; border: none; background: #fff; color: #333; font-weight: bold; cursor: pointer; border-bottom: 3px solid #ff6b6b;">
-                    🔥 JAVDB 磁力链
-                    <span id="javdb-count" style="background: #ff6b6b; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px;">加载中...</span>
-                </button>
-                <button id="javbus-tab-btn" class="dual-tab-btn" style="flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;">
-                    🧲 JAVBUS 磁力链
-                    <span id="javbus-count" style="background: #999; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px;">加载中...</span>
-                </button>
-                ${GM_getValue('jb_enable_bt_search', true) ? `
-                <button id="bt-tab-btn" class="dual-tab-btn" style="flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;">
-                    🌐 BT聚合搜索
-                </button>` : ''}
-            </div>
+            <!-- 磁力来源横向标签：点击对应标签展示该站点的磁力连接列表 -->
+            <div class="dual-magnet-tabs" style="display: flex; margin-bottom: 12px; gap: 6px; flex-wrap: wrap;">
+                <button id="javdb-tab-btn" class="dual-tab-btn active" style="padding: 7px 12px; border: none; background: #ff6b6b; color: #fff; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 13px;">JAVDB <span id="javdb-count" style="background: rgba(255,255,255,0.25); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 4px;">…</span></button>
+                <button id="javbus-tab-btn" class="dual-tab-btn" style="padding: 7px 12px; border: none; background: #e2e8f0; color: #555; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 13px;">JAVBUS <span id="javbus-count" style="background: rgba(0,0,0,0.15); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 4px;">…</span></button>            </div>
 
             <!-- JAVDB 内容区域 -->
             <div id="javdb-content" class="tab-content" style="display: block;">
@@ -5489,13 +5202,13 @@ if (Hls.isSupported()) {
             </div>
 
             <!-- JAVBUS 内容区域 -->
-            <div id="javbus-content" class="tab-content" style="display: none;">
+            <div id="javbus-content" class="tab-content" style="display: block;">
                 <div id="javbus-loading" class="preview-loading">正在获取 JAVBUS 磁力链...</div>
                 <div id="javbus-magnet-list" class="modal-magnet-list" style="display: none;"></div>
             </div>
 
-            <!-- BT聚合搜索内容区域 -->
-            <div id="bt-content" class="tab-content" style="display: none;"></div>
+            <!-- BT聚合搜索内容区域（全部站点展开） -->
+            <div id="bt-content" class="tab-content" style="display: block;"></div>
         </div>
         `;
 
@@ -5535,52 +5248,50 @@ if (Hls.isSupported()) {
             });
         }
 
-        // 绑定标签切换事件
+        // 磁力来源横向标签：点击对应标签展示该站点的磁力列表
         setTimeout(() => {
-            const javdbTabBtn = document.getElementById('javdb-tab-btn');
-            const javbusTabBtn = document.getElementById('javbus-tab-btn');
-            const javdbContent = document.getElementById('javdb-content');
-            const javbusContent = document.getElementById('javbus-content');
-
-            if (javdbTabBtn) {
-                javdbTabBtn.onclick = () => {
-                    javdbTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #fff; color: #333; font-weight: bold; cursor: pointer; border-bottom: 3px solid #ff6b6b;';
-                    javbusTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;';
-                    if (btTabBtn) btTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;';
-                    javdbContent.style.display = 'block';
-                    javbusContent.style.display = 'none';
-                    if (btContent) btContent.style.display = 'none';
-                };
-            }
-
-            if (javbusTabBtn) {
-                javbusTabBtn.onclick = () => {
-                    javbusTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #fff; color: #333; font-weight: bold; cursor: pointer; border-bottom: 3px solid #667eea;';
-                    javdbTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;';
-                    if (btTabBtn) btTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;';
-                    javbusContent.style.display = 'block';
-                    javdbContent.style.display = 'none';
-                    if (btContent) btContent.style.display = 'none';
-                };
-            }
-
-            const btTabBtn = document.getElementById('bt-tab-btn');
             const btContent = document.getElementById('bt-content');
-            if (btTabBtn) {
-                btTabBtn.onclick = () => {
-                    btTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #fff; color: #333; font-weight: bold; cursor: pointer; border-bottom: 3px solid #9c27b0;';
-                    javdbTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;';
-                    javbusTabBtn.style.cssText = 'flex: 1; padding: 12px; border: none; background: #f5f5f5; color: #666; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;';
-                    btContent.style.display = 'block';
-                    javdbContent.style.display = 'none';
-                    javbusContent.style.display = 'none';
-                    renderBtSearchPanel(btContent, videoCode);
+            const setTab = (name) => {
+                ['javdb', 'javbus', 'bt'].forEach(k => {
+                    const el = document.getElementById(k + '-content');
+                    if (el) el.style.display = (k === name || (name !== 'javdb' && name !== 'javbus' && k === 'bt')) ? 'block' : 'none';
+                });
+                document.querySelectorAll('#emby-modal-body .dual-tab-btn').forEach(b => { b.style.background = '#e2e8f0'; b.style.color = '#555'; });
+                if (name === 'javdb' || name === 'javbus') {
+                    const active = document.getElementById(name === 'javdb' ? 'javdb-tab-btn' : 'javbus-tab-btn');
+                    if (active) { active.style.background = '#9c27b0'; active.style.color = '#fff'; }
+                }
+                const btEl = document.getElementById('bt-content');
+                if (btEl) btEl.querySelectorAll('.jb-bt-chip').forEach(ch => ch.classList.remove('active'));
+            };
+            const bindTab = (id, name) => {
+                const b = document.getElementById(id);
+                if (!b) return;
+                b.onclick = () => {
+                    setTab(name);
+                    if (name === 'javdb') loadJavdbMagnetsForList(itemEl, videoCode);
+                    else if (name === 'javbus') loadJavbusMagnetsForList(videoCode);
                 };
+            };
+            bindTab('javdb-tab-btn', 'javdb');
+            bindTab('javbus-tab-btn', 'javbus');
+            // [改造] BT 站点标签并入主标签行（JAVDB / JAVBUS / Sukebei / CiliGou / U3C3 / U9A9 / SoKitty 一行排开），
+            // 点击站点标签直接显示对应磁力列表，不再渲染第二排重复标签；点击时才加载对应站点
+            if (GM_getValue('jb_enable_bt_search', true)) {
+                const tabsRow = document.querySelector('#emby-modal-body .dual-magnet-tabs');
+                if (tabsRow) {
+                    renderBtSearchPanel(btContent, videoCode, tabsRow, {
+                        lazy: true,
+                        onEngineSelect: (key) => {
+                            setTab('bt');
+                            document.querySelectorAll('#emby-modal-body .dual-tab-btn').forEach(b => { b.style.background = '#e2e8f0'; b.style.color = '#555'; });
+                        }
+                    });
+                }
             }
-
-            // 同时加载 JAVDB 和 JAVBUS 数据
+                        // 默认显示 JAVDB 磁力链
+            setTab('javdb');
             loadJavdbMagnetsForList(itemEl, videoCode);
-            loadJavbusMagnetsForList(videoCode);
         }, 100);
     }
 
@@ -7128,7 +6839,8 @@ if (Hls.isSupported()) {
                     addShortReviewButton(toolsRow, item, code);
                     addPreviewToggle(toolsRow, item, code);
                     addMagnetToggle(toolsRow, item, code);
-                    // 播放紧跟在第一排“磁力链”后面，避免被误排到第二行。
+                    // 预告片在“在线播放”前；在线播放紧跟在第一排“磁力链”后面，避免被误排到第二行。
+                    addTrailerButton(toolsRow, item, code);
                     addOnlinePlayButton(toolsRow, code);
 
                     // 字幕搜索按钮（第一行末尾，磁力链后面）
@@ -7199,36 +6911,6 @@ if (Hls.isSupported()) {
                     if (existingPanel) existingPanel.style.display = 'none';
                 }
 
-                // 键盘快捷键：W=想看 V=看过 L=存入清单（作用于当前悬停的列表项，功能与详情页一致）
-                if (!window.__jbListShortcutInit) {
-                    window.__jbListShortcutInit = true;
-                    let hoverItem = null;
-                    let hoverCode = '';
-                    document.addEventListener('mouseover', (e) => {
-                        const el = e.target && e.target.closest ? e.target.closest('.item, .movie-item, [data-movie-id], .card') : null;
-                        if (el) {
-                            hoverItem = el;
-                            const a = el.querySelector('a[href*="/v/"]');
-                            if (a) hoverCode = (a.getAttribute('title') || '').trim();
-                            else {
-                                const t = el.querySelector('.video-title strong, .video-title, .title');
-                                hoverCode = t ? t.textContent.trim() : '';
-                            }
-                        }
-                    }, true);
-                    document.addEventListener('keydown', (e) => {
-                        if (!hoverItem || !hoverCode) return;
-                        if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
-                        const key = e.key.toLowerCase();
-                        if (key !== 'w' && key !== 'v' && key !== 'l') return;
-                        if (e.ctrlKey || e.metaKey || e.altKey) return;
-                        const dummyBtn = document.createElement('span');
-                        dummyBtn.style.display = 'none';
-                        if (key === 'w') { e.preventDefault(); jbToggleWantWatch(hoverItem, hoverCode, dummyBtn); }
-                        else if (key === 'v') { e.preventDefault(); jbMarkWatched(hoverItem, hoverCode, dummyBtn); }
-                        else if (key === 'l') { e.preventDefault(); jbSaveToList(hoverItem, hoverCode, dummyBtn); }
-                    }, true);
-                }
 
                 // 标记为已处理
                 item.dataset[PROCESSED_MARK] = '1';
@@ -7862,7 +7544,8 @@ if (Hls.isSupported()) {
     }
 
     // BT 聚合搜索面板：横向站点栏（点击切换）+ 纵向磁力列表，带缓存
-    function renderBtSearchPanel(container, videoCode) {
+    function renderBtSearchPanel(container, videoCode, barHost, opts) {
+        opts = opts || {};
         if (!container || container.dataset.btInited === 'true') return;
         container.dataset.btInited = 'true';
 
@@ -7902,8 +7585,8 @@ if (Hls.isSupported()) {
 
         const wrap = document.createElement('div');
         wrap.className = 'jb-bt-panel';
-        const bar = document.createElement('div');
-        bar.className = 'jb-bt-bar';
+        const bar = barHost || document.createElement('div');
+        if (!barHost) bar.className = 'jb-bt-bar';
         // 排序下拉：大小/最新/最旧（默认大小，与原脚本一致）
         const sortSel = document.createElement('select');
         sortSel.className = 'jb-bt-sort';
@@ -7917,6 +7600,7 @@ if (Hls.isSupported()) {
         const list = document.createElement('div');
         list.className = 'jb-bt-list';
 
+        // 横向站点标签：点击对应标签展示该站点的磁力连接列表
         const chips = {};
         BT_SEARCH_ENGINES.forEach((eng, i) => {
             const chip = document.createElement('div');
@@ -7932,6 +7616,7 @@ if (Hls.isSupported()) {
             chip.onclick = () => {
                 bar.querySelectorAll('.jb-bt-chip').forEach(c => c.classList.remove('active'));
                 chip.classList.add('active');
+                if (opts.onEngineSelect) opts.onEngineSelect(eng.key);
                 loadEngine(eng.key);
             };
             chips[eng.key] = chip;
@@ -7939,7 +7624,7 @@ if (Hls.isSupported()) {
         });
 
         bar.appendChild(sortSel);
-        wrap.appendChild(bar);
+        if (!barHost) wrap.appendChild(bar);
         wrap.appendChild(list);
         container.appendChild(wrap);
 
@@ -7999,8 +7684,9 @@ if (Hls.isSupported()) {
             renderList(key);
         }
 
-        // 打开面板即自动搜索全部站点（并发受全局请求限流器控制），各自完成后更新徽标
-        BT_SEARCH_ENGINES.forEach(eng => loadEngine(eng.key));
+        // 打开面板即自动搜索全部站点（并发受全局请求限流器控制），各自完成后更新徽标；
+        // 传入 lazy:true 时改为用户点击站点标签才搜索（避免页面加载即触发 5 个请求造成限流）
+        if (!opts.lazy) BT_SEARCH_ENGINES.forEach(eng => loadEngine(eng.key));
     }
 
     // ========== 外部截图长图预览（移植自 JAV老司机-新 的 Thumbnail/ImagePreview 模块） ==========
@@ -8128,10 +7814,8 @@ if (Hls.isSupported()) {
         style.id = 'jb-thumb-style';
         style.textContent = `
             .preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2147483647;display:flex;align-items:flex-start;justify-content:center;overflow:auto;cursor:zoom-out;backdrop-filter:blur(5px)}
-            .preview-img{border-radius:4px;margin:50px auto 0;cursor:zoom-in;max-width:95vw;height:auto;display:block;box-shadow:0 0 20px rgba(0,0,0,0.5)}
-            /* 长图顶部是资源站生成的文件信息，不展示；负 margin 抵消裁剪高度，使正文仍紧贴标题栏。 */
-            .preview-img.source-javstore{clip-path:inset(82px 0 0 0);margin-top:-32px}
-            .preview-img.source-javfree{clip-path:inset(45px 0 0 0);margin-top:-5px}
+            .preview-img{border-radius:4px;margin:64px auto 0;cursor:zoom-in;max-width:95vw;height:auto;display:block;box-shadow:0 0 20px rgba(0,0,0,0.5)}
+            /* 长截图不再裁剪：图片从“番号+标题”下方直接衔接展示 */
             .preview-img.zoomed{max-width:none;height:auto;cursor:zoom-out}
             .preview-toolbar{position:fixed;top:20px;right:20px;display:flex;gap:8px;z-index:2147483648;background:rgba(30,30,30,0.75);backdrop-filter:blur(10px);padding:6px 12px;border-radius:30px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 6px 18px rgba(0,0,0,0.25)}
             .preview-btn{border:none;color:#eee;font-size:13px;font-weight:450;cursor:pointer;padding:6px 14px;border-radius:24px;transition:all 0.2s ease;display:inline-flex;align-items:center;gap:6px;background:rgba(100,100,120,0.3);border:1px solid rgba(255,255,255,0.05);box-shadow:0 2px 4px rgba(0,0,0,0.1);letter-spacing:0.2px}
@@ -8197,16 +7881,14 @@ if (Hls.isSupported()) {
             b.onclick = (e) => { e.stopPropagation(); onClick(b); };
             actionPanel.appendChild(b);
         };
-        addAction('📋', '复制番号', async () => {
+        addAction('', '复制番号', async () => {
             const ok = await jbCopyText(code);
             showToast(ok ? '已复制：' + code : '复制失败');
         });
-        addAction('📝', '短评', () => fetchShortReviews(ctxItemEl, code));
-        addAction('🧲', '磁力链', () => showDualMagnetModalForList(code, ctxItemEl));
-        addAction('👀', '想看', (b) => jbToggleWantWatch(ctxItemEl, code, b));
-        addAction('✅', '看过', (b) => jbMarkWatched(ctxItemEl, code, b));
-        addAction('📑', '存入清单', (b) => jbSaveToList(ctxItemEl, code, b));
-        addAction('▶', '播放', () => showDirectPlayer(code, 'MISSAV'));
+        addAction('', '短评', () => fetchShortReviews(ctxItemEl, code));
+        addAction('', '磁力链', () => showDualMagnetModalForList(code, ctxItemEl));
+        addAction('', '预告片', () => jbShowTrailer(code));
+        addAction('', '播放', () => showDirectPlayer(code, 'MISSAV'));
 
         // 顶部演员信息栏（异步拉取详情页解析，加载完成后注入；须在遮罩之后插入，避免被覆盖）
         const actorBar = document.createElement('div');
@@ -9846,11 +9528,9 @@ if (Hls.isSupported()) {
                 javbusTab.style.background = 'white';
                 javbusTab.style.color = '#999';
                 javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                if (btTab) {
-                    btTab.style.background = 'white';
-                    btTab.style.color = '#999';
-                    btTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                }
+                dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) {
+                    bt.classList.remove('active');
+                });
                 
                 // 取消超时检查
                 if (javdbLoadTimeout) {
@@ -9905,11 +9585,9 @@ if (Hls.isSupported()) {
                 javdbTab.style.background = 'white';
                 javdbTab.style.color = '#999';
                 javdbTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                if (btTab) {
-                    btTab.style.background = 'white';
-                    btTab.style.color = '#999';
-                    btTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                }
+                dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) {
+                    bt.classList.remove('active');
+                });
             };
             
             // 添加悬停效果
@@ -9931,57 +9609,6 @@ if (Hls.isSupported()) {
             
             dualTabsContainer.appendChild(javdbTab);
             dualTabsContainer.appendChild(javbusTab);
-            
-            // [新增] BT聚合搜索标签（横向站点栏 + 纵向磁力列表，移植自 JAV老司机-新）
-            let btTab = null;
-            if (GM_getValue('jb_enable_bt_search', true)) {
-                btTab = document.createElement('button');
-                btTab.className = 'javdb-tab';
-                btTab.textContent = '🌐 BT聚合搜索';
-                btTab.style.cssText = `
-                    padding: 6px 12px;
-                    border: none;
-                    background: white;
-                    color: #999;
-                    cursor: pointer;
-                    font-weight: 600;
-                    font-size: 13px;
-                    text-align: center;
-                    border-radius: 6px;
-                    transition: all 0.3s ease;
-                    margin: 0;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    position: relative;
-                    overflow: visible;
-                `;
-                btTab.addEventListener('mouseenter', function() {
-                    this.style.transform = 'translateY(-2px)';
-                    this.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
-                });
-                btTab.addEventListener('mouseleave', function() {
-                    this.style.transform = 'translateY(0)';
-                    this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                });
-                btTab.onclick = function() {
-                    window.__dualMagnetHandling = true;
-                    magnetTabContent.style.display = 'none';
-                    javbusMagnetsContainer.style.display = 'none';
-                    manualLoadBtn.style.display = 'none';
-                    btMagnetsContainer.style.display = 'block';
-                    renderBtSearchPanel(btMagnetsContainer, videoCode);
-                    setTimeout(() => { window.__dualMagnetHandling = false; }, 0);
-                    btTab.style.background = 'white';
-                    btTab.style.color = '#667eea';
-                    btTab.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.2)';
-                    javdbTab.style.background = 'white';
-                    javdbTab.style.color = '#999';
-                    javdbTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                    javbusTab.style.background = 'white';
-                    javbusTab.style.color = '#999';
-                    javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                };
-                dualTabsContainer.appendChild(btTab);
-            }
             
             // 插入到磁力链容器前面（作为兄弟元素，方便分别控制显隐）
             magnetTabContent.parentNode.insertBefore(dualTabsContainer, magnetTabContent);
@@ -10034,6 +9661,28 @@ if (Hls.isSupported()) {
             // 将按钮添加到 JAVBUS 容器后面
             javbusMagnetsContainer.parentNode.insertBefore(manualLoadBtn, javbusMagnetsContainer.nextSibling);
             
+            // [改造] BT 站点标签并入主标签行：JAVDB / JAVBUS / Sukebei / CiliGou / U3C3 / U9A9 / SoKitty 一行排开，
+            // 点击站点标签直接显示对应磁力列表（不再渲染第二排重复标签；改为点击时才加载，避免请求风暴）
+            if (GM_getValue('jb_enable_bt_search', true)) {
+                renderBtSearchPanel(btMagnetsContainer, videoCode, dualTabsContainer, {
+                    lazy: true,
+                    onEngineSelect: function(key) {
+                        window.__dualMagnetHandling = true;
+                        magnetTabContent.style.display = 'none';
+                        javbusMagnetsContainer.style.display = 'none';
+                        manualLoadBtn.style.display = 'none';
+                        btMagnetsContainer.style.display = 'block';
+                        setTimeout(function() { window.__dualMagnetHandling = false; }, 0);
+                        javdbTab.style.background = 'white';
+                        javdbTab.style.color = '#999';
+                        javdbTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                        javbusTab.style.background = 'white';
+                        javbusTab.style.color = '#999';
+                        javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                    }
+                });
+            }
+            
             // ====== 监听 JAVDB 原生标签切换 → 同步双标签显隐 ======
             // showJAVBUSMagnets 和 showJAVDBMagnets 操作 #magnets 显隐时设置标记，
             // 标记延迟清除，让 Observer 能区分"我们主动隐藏"和"JAVDB 原生标签切换"
@@ -10067,11 +9716,9 @@ if (Hls.isSupported()) {
                     javbusTab.style.background = 'white';
                     javbusTab.style.color = '#999';
                     javbusTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                    if (btTab) {
-                        btTab.style.background = 'white';
-                        btTab.style.color = '#999';
-                        btTab.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                    }
+                    dualTabsContainer.querySelectorAll('.jb-bt-chip').forEach(function(bt) {
+                        bt.classList.remove('active');
+                    });
                 }
             }
             const magnetTabObserver = new MutationObserver(syncMagnetTabVisibility);
@@ -10243,6 +9890,8 @@ if (Hls.isSupported()) {
             observer.observe(magnetTabContent, { childList: true, subtree: true });
             
             console.log('JavdbBuddy: 双标签磁力链已添加');
+            
+
             
         } catch (error) {
             console.error('JavdbBuddy: 添加双标签磁力链失败:', error);
@@ -11745,7 +11394,8 @@ if (Hls.isSupported()) {
                 const dualMagnetTabs = tabsContainer.querySelector('.javdb-dual-magnet-tabs');
                 const magnetsDiv = document.getElementById('magnets');
                 const javbusContainer = document.getElementById('javbus-magnet-container');
-                [magnetsContent, dualMagnetTabs, magnetsDiv, javbusContainer, reviewPanel, relatedPanel, origReviews, origLists].forEach(el => {
+                const btMagnetContainer = document.getElementById('bt-magnet-container');
+                [magnetsContent, dualMagnetTabs, magnetsDiv, javbusContainer, btMagnetContainer, reviewPanel, relatedPanel, origReviews, origLists].forEach(el => {
                     if (el) el.style.display = 'none';
                 });
                 // 隐藏手动加载按钮
@@ -11758,6 +11408,7 @@ if (Hls.isSupported()) {
                     if (dualMagnetTabs) dualMagnetTabs.style.display = '';
                     if (magnetsDiv) magnetsDiv.style.display = '';
                     if (javbusContainer) javbusContainer.style.display = '';
+                    if (btMagnetContainer) btMagnetContainer.style.display = '';
                     if (loadBtn) loadBtn.style.display = '';
                 } else if (tabName === 'reviews') {
                     reviewPanel.style.display = 'block';
@@ -12077,20 +11728,32 @@ if (Hls.isSupported()) {
         }
     }
 
+    // 相关清单渲染（移植自 JavDB.lists：网格卡片，链接直达清单页）
     function jbDisplayRelateds(dataList, container, getFloorIndex) {
         if (!dataList || !dataList.length) return;
+        const grid = document.createElement('div');
+        grid.className = 'plain-grid-list';
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;';
         dataList.forEach(item => {
-            const div = document.createElement('div');
-            div.style.cssText = 'display:block;margin-top:6px;background-color:#ffffff;padding:10px;margin-left:-10px;word-break:break-word;position:relative;';
-            div.innerHTML = `
-                <span style="position:absolute;top:5px;right:10px;color:#999;font-size:12px;">#${getFloorIndex()}</span>
-                <span style="position:absolute;bottom:5px;right:10px;color:#999;font-size:12px;">创建时间: ${item.createTime || ''}</span>
-                <p><a href="/lists/${item.relatedId}" target="_blank" style="color:#2e8abb">${(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</a></p>
-                <p style="margin-top:5px;">视频个数: ${item.movieCount || 0}</p>
-                <p style="margin-top:5px;">收藏次数: ${item.collectionCount || 0} 被查看次数: ${item.viewCount || 0}</p>
-            `;
-            container.appendChild(div);
+            const a = document.createElement('a');
+            a.className = 'item box';
+            a.href = '/lists/' + item.relatedId;
+            a.target = '_blank';
+            a.title = item.name || '';
+            a.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;color:#333;text-decoration:none;font-size:13px;transition:all .15s;';
+            const strong = document.createElement('strong');
+            strong.textContent = item.name || '';
+            strong.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            const span = document.createElement('span');
+            span.textContent = '(' + (item.movieCount || 0) + ')';
+            span.style.cssText = 'color:#999;font-size:12px;flex-shrink:0;';
+            a.appendChild(strong);
+            a.appendChild(span);
+            a.onmouseenter = () => { a.style.borderColor = '#0099e8'; a.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; };
+            a.onmouseleave = () => { a.style.borderColor = '#e5e7eb'; a.style.boxShadow = 'none'; };
+            grid.appendChild(a);
         });
+        container.appendChild(grid);
     }
 
     // ========== [新增] 列表页链接在新窗口打开 ==========
@@ -12417,6 +12080,30 @@ if (Hls.isSupported()) {
     window.showSettingsDialog = showSettingsDialog;
 
     // ========== [新增] 打赏弹窗 ==========
+    // 二维码点击放大：在当前页面弹出大图查看（不新开标签页）
+    window.jbZoomQr = function (src, alt) {
+        try {
+            let ov = document.getElementById('jb-qr-zoom');
+            if (ov) ov.remove();
+            ov = document.createElement('div');
+            ov.id = 'jb-qr-zoom';
+            ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = alt || '';
+            img.style.cssText = 'max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 0 40px rgba(0,0,0,0.6);';
+            ov.appendChild(img);
+            const cap = document.createElement('div');
+            cap.textContent = alt || '';
+            cap.style.cssText = 'position:absolute;bottom:22px;left:0;right:0;text-align:center;color:#fff;font:14px Arial,sans-serif;';
+            ov.appendChild(cap);
+            const esc = (e) => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc); } };
+            ov.onclick = () => { ov.remove(); document.removeEventListener('keydown', esc); };
+            document.addEventListener('keydown', esc);
+            document.body.appendChild(ov);
+        } catch (e) { console.warn('JavdbBuddy: 二维码放大失败', e); }
+    };
+
     function showDonateDialog() {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999999;display:flex;align-items:center;justify-content:center;';
@@ -12426,11 +12113,11 @@ if (Hls.isSupported()) {
                 <p style="margin:0 0 15px 0;color:#666;font-size:13px;">如果觉得脚本好用，欢迎打赏一杯咖啡 ☕</p>
                 <div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap;">
                     <div>
-                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;" alt="微信">
+                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:zoom-in;" alt="微信" onclick="jbZoomQr(this.src,this.alt)">
                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">微信</p>
                     </div>
                     <div>
-                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E6%94%AF%E4%BB%98%E5%AE%9D%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;" alt="支付宝">
+                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E6%94%AF%E4%BB%98%E5%AE%9D%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:zoom-in;" alt="支付宝" onclick="jbZoomQr(this.src,this.alt)">
                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">支付宝</p>
                     </div>
                 </div>
