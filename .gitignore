@@ -1,0 +1,4 @@
+.freebuff/
+node_modules/
+*.log
+_patch*.js
