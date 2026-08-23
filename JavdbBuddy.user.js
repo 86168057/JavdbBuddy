@@ -770,9 +770,16 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                 <input type="file" id="jb-imgsearch-file" accept="image/*" style="display:none;">
                 <div id="jb-imgsearch-status" style="text-align:center;margin-top:14px;color:#666;font-size:13px;min-height:20px;"></div>
             `);
-            // 不再预先打开标签页——上传完成后才打开，避免弹窗拦截
+            // 在用户点击"识图"的同步调用栈中预先创建结果标签页（用户手势，不会被拦截）
             const targetName = 'jb_google_lens_result';
-            window.__jbImageSearchTab = null;
+            try {
+                window.__jbImageSearchTab = window.open('about:blank', targetName);
+                if (window.__jbImageSearchTab && !window.__jbImageSearchTab.closed) {
+                    window.__jbImageSearchTab.document.write('<title>Google 识图 - 等待上传</title><p style="font:14px Arial;color:#666;text-align:center;margin-top:20vh;">等待上传图片...</p>');
+                    window.__jbImageSearchTab.document.close();
+                    try { window.__jbImageSearchTab.blur(); window.focus(); } catch (focusErr) {}
+                }
+            } catch (e) { window.__jbImageSearchTab = null; }
 
             const drop = document.getElementById('jb-imgsearch-drop');
             const fileInput = document.getElementById('jb-imgsearch-file');
@@ -817,7 +824,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         }
     }
 
-    // 通过 Google 搜图上传接口提交图片（上传完成后才打开新标签页，避免弹窗拦截和 403）
+    // 通过 Google 搜图上传接口提交图片（标签页已在点击"识图"时预创建，拖拽/粘贴/选择文件只负责提交表单）
     function jbSearchImageByFile(file, statusEl) {
         try {
             if (!file || !/^image\//i.test(file.type || '')) {
@@ -827,6 +834,20 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
             if (statusEl) statusEl.innerHTML = '⏳ 正在上传识别...';
 
             const targetName = 'jb_google_lens_result';
+            // 优先使用预创建的标签页，如果已被关闭则尝试重新打开
+            let searchTab = window.__jbImageSearchTab;
+            if (!searchTab || searchTab.closed) {
+                searchTab = window.open('about:blank', targetName);
+                if (searchTab) {
+                    searchTab.document.write('<title>Google 识图</title><p style="font:14px Arial;color:#666;text-align:center;margin-top:20vh;">正在上传识别...</p>');
+                    searchTab.document.close();
+                }
+            }
+            if (!searchTab || searchTab.closed) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 浏览器阻止了弹出窗口，请允许本站弹出窗口后重试';
+                return;
+            }
+
             const form = document.createElement('form');
             form.method = 'POST';
             form.enctype = 'multipart/form-data';
@@ -844,21 +865,10 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
             form.appendChild(input);
 
             document.body.appendChild(form);
-
-            // 在 submit 前同步打开标签页（同一调用栈 = 用户手势，不会被拦截）
-            const searchTab = window.open('about:blank', targetName);
-            if (!searchTab) {
-                form.remove();
-                if (statusEl) statusEl.innerHTML = '⚠️ 浏览器阻止了弹出窗口，请允许本站弹出窗口后重试';
-                return;
-            }
-            searchTab.document.write('<title>Google 识图</title><p style="font:14px Arial;color:#666;text-align:center;margin-top:20vh;">正在上传识别...</p>');
-            searchTab.document.close();
-
             form.submit();
             form.remove();
 
-            if (statusEl) statusEl.innerHTML = '✅ 已上传，正在新标签页打开 Google 识图...';
+            if (statusEl) statusEl.innerHTML = '✅ 已上传，正在新标签页搜索...';
             setTimeout(() => { if (isModalVisible()) hideModal(); }, 800);
         } catch (e) {
             console.warn('JavdbBuddy: 识图提交失败', e);
@@ -2140,17 +2150,17 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
                         </div>
 
                         <div id="tab-about" class="jb-tab-content" style="display:none;">
-                            <div style="text-align:center;padding:10px 0 30px;">
-                                <h3 style="margin:0 0 6px 0;color:#333;">JAVDB全能助手</h3>
+                            <div style="text-align:center;padding:30px 0;">
+                                <h3 style="margin:0 0 10px 0;color:#333;">JAVDB全能助手</h3>
                                 <p style="margin:0 0 20px 0;color:#666;font-size:13px;">by: 潇洒公子</p>
                                 <p style="margin:0 0 25px 0;color:#999;font-size:12px;">Version ${version}</p>
                                 <div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap;">
                                     <div>
-                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="微信" onclick="const d=document.createElement('div');d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999999;display:flex;align-items:center;justify-content:center;cursor:pointer;';d.onclick=()=>d.remove();const i=document.createElement('img');i.src=this.src;i.style.maxWidth='90vw';i.style.maxHeight='90vh';i.style.objectFit='contain';d.appendChild(i);document.body.appendChild(d);">
+                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="微信" onclick="window.open(this.src,'_blank')">
                                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">微信</p>
                                     </div>
                                     <div>
-                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E6%94%AF%E4%BB%98%E5%AE%9D%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="支付宝" onclick="const d=document.createElement('div');d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999999;display:flex;align-items:center;justify-content:center;cursor:pointer;';d.onclick=()=>d.remove();const i=document.createElement('img');i.src=this.src;i.style.maxWidth='90vw';i.style.maxHeight='90vh';i.style.objectFit='contain';d.appendChild(i);document.body.appendChild(d);">
+                                        <img src="https://raw.githubusercontent.com/86168057/JavdbBuddy/main/%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81/%E5%BE%AE%E4%BF%A1%E6%94%B6%E6%AC%BE%E4%BA%8C%E7%BB%B4%E7%A0%81.png" style="width:200px;height:200px;object-fit:contain;border:1px solid #eee;border-radius:4px;cursor:pointer;" alt="微信" onclick="window.open(this.src,'_blank')">
                                         <p style="margin:5px 0 0 0;color:#666;font-size:12px;">支付宝</p>
                                     </div>
                                 </div>
@@ -2173,9 +2183,6 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         
         overlay.innerHTML = html;
         document.body.appendChild(overlay);
-        // 锁定背景滚动
-        document.body.style.overflow = 'hidden';
-        document.documentElement.style.overflow = 'hidden';
 
         // 分类切换逻辑
         const tabs = overlay.querySelectorAll('.jb-setting-tab');
@@ -2229,16 +2236,12 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
             if (e.target === overlay) {
                 autoSave();
                 overlay.remove();
-                document.body.style.overflow = '';
-                document.documentElement.style.overflow = '';
             }
         };
         
         document.getElementById('close-settings-btn').onclick = () => {
             autoSave();
             overlay.remove();
-            document.body.style.overflow = '';
-            document.documentElement.style.overflow = '';
         };
         function addServerByType(type) {
             const newIndex = servers.length;
@@ -3937,9 +3940,6 @@ if (Hls.isSupported()) {
         document.getElementById('emby-modal-title').textContent = title;
         document.getElementById('emby-modal-body').innerHTML = contentHtml;
         overlay.style.display = 'flex';
-        // 锁定背景滚动
-        document.body.style.overflow = 'hidden';
-        document.documentElement.style.overflow = 'hidden';
     }
     window.jbShowModalFn = showModal;
 
@@ -3952,9 +3952,6 @@ if (Hls.isSupported()) {
         if (overlay) {
             overlay.style.display = 'none';
         }
-        // 恢复背景滚动
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
     }
     window.jbHideModalFn = hideModal;
 
@@ -4615,17 +4612,19 @@ if (Hls.isSupported()) {
                 btn.style.pointerEvents = '';
                 return;
             }
-            // 使用 fetch AJAX 提交（与详情页 data-remote 行为一致）
-            await jbSubmitRailsForm(form, detailUrl);
+            const detailCsrf = jbGetDetailCsrf(doc, jbGetCsrfToken());
+            const isRemove = jbFormIsRemoval(form);
+            await jbNativeSubmitForm(form, detailCsrf, detailUrl);
             jbInvalidateDetailCache(detailUrl);
-            // 操作后重新读取详情页确认最终状态
-            const html2 = await jbFetchWithLimit(detailUrl);
-            const doc2 = new DOMParser().parseFromString(html2, 'text/html');
-            const form2 = doc2.querySelector('form[action*="want_to_watch"], form[action*="want-watch"]');
-            const active = form2 ? jbFormIsRemoval(form2) : false;
-            jbPublishAccountState(videoCode, { want: active });
-            jbSetAccountButtonState(btn, 'want', active);
-            showToast(active ? '已加入想看' : '已取消想看');
+            if (isRemove) {
+                jbPublishAccountState(videoCode, { want: false });
+                jbSetAccountButtonState(btn, 'want', false);
+                showToast('已取消想看');
+            } else {
+                jbPublishAccountState(videoCode, { want: true });
+                jbSetAccountButtonState(btn, 'want', true);
+                showToast('已加入想看');
+            }
         } catch (err) {
             showToast('操作失败：' + (err.message || '网络错误'));
             jbSetAccountButtonState(btn, 'want', origActive);
@@ -4668,7 +4667,7 @@ if (Hls.isSupported()) {
             form = doc.querySelector('#new_review, #edit_review, form[action*="/reviews"], form[id*="review"]');
             detailCsrf = jbGetDetailCsrf(doc, detailCsrf);
             if (loggedIn && btn.dataset.active === '1' && removalForm) {
-                await jbSubmitRailsForm(removalForm, detailUrl);
+                await jbNativeSubmitForm(removalForm, detailCsrf, detailUrl);
                 jbInvalidateDetailCache(detailUrl);
                 jbPublishAccountState(videoCode, { watched: false });
                 jbSetAccountButtonState(btn, 'watched', false);
@@ -4692,7 +4691,7 @@ if (Hls.isSupported()) {
                     if (scoreEl.type === 'radio' || scoreEl.type === 'checkbox') scoreEl.checked = scoreEl.value === String(score);
                     else scoreEl.value = String(score);
                 });
-                await jbSubmitRailsForm(form, detailUrl);
+                await jbNativeSubmitForm(form, detailCsrf, detailUrl);
                 jbInvalidateDetailCache(detailUrl);
                 jbPublishAccountState(videoCode, { watched: true });
                 jbSetAccountButtonState(btn, 'watched', true);
@@ -4818,7 +4817,7 @@ if (Hls.isSupported()) {
                 el.style.opacity = '0.5';
                 el.style.pointerEvents = 'none';
                 try {
-                    await jbSubmitRailsForm(f, detailUrl);
+                    await jbNativeSubmitForm(f, jbGetDetailCsrf(f.ownerDocument, jbGetCsrfToken()), detailUrl);
                     const listActive = !jbFormIsRemoval(f);
                     jbInvalidateDetailCache(detailUrl);
                     jbPublishAccountState(videoCode, { list: listActive });
