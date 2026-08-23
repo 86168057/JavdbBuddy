@@ -2,7 +2,7 @@
 // @name         Javdb全能助手
 // @name:en      JavdbBuddy
 // @namespace    https://github.com/86168057/JavdbBuddy
-// @version        1.2.7
+// @version        1.2.8
 // @description  JAVDB 一站式增强 Tampermonkey 用户脚本，集成 Emby / Jellyfin 入库状态同步、预览图查看、磁力链管理、多站点快捷搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单等功能。
 // @description:en  JavdbBuddy - JAVDB All-in-One Assistant: Emby / Jellyfin library sync, preview images, magnet links, multi-site search, Hot/Top250/FC2PPV, all reviews, related lists
 // @description:zh-CN  JAVDB + Emby / Jellyfin 联动脚本：实时同步入库状态、预览图查看、磁力链管理、多站点搜索、免VIP热播/Top250/FC2PPV、全部评论、相关清单
@@ -2007,7 +2007,7 @@ const JB_TOP_URL = '/advanced_search?laosiji_rank=top&lsj_category=all';
         overlay.id = 'emby-settings-overlay';
         overlay.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;';
         
-        const version = typeof GM_info !== 'undefined' && GM_info.script?.version && GM_info.script.version !== '0' ? GM_info.script.version : '1.2.7';
+        const version = typeof GM_info !== 'undefined' && GM_info.script?.version && GM_info.script.version !== '0' ? GM_info.script.version : '1.2.8';
         // 读取通用设置（必须在 HTML 模板之前定义，否则会导致 Temporal Dead Zone 错误）
         const enableHoverZoom = GM_getValue('jb_enable_hover_zoom', false);
         const openInNewTab = GM_getValue('jb_open_in_new_tab', false);
@@ -3772,13 +3772,156 @@ if (Hls.isSupported()) {
         container.appendChild(btn);
     }
 
-    // ====== 预告片（移植自 JAV老司机-新：javxy.cc.cd 预告片源 + 沉浸式播放器外观） ======
+    // ====== 预告片播放器（移植自 JAV老司机-新：深色沉浸式播放器 + HLS GM加载器） ======
+
+    // 注入与参考脚本一致的深色沉浸式播放器 CSS
+    (function() {
+        if (document.getElementById('jb-trailer-css')) return;
+        var s = document.createElement('style');
+        s.id = 'jb-trailer-css';
+        s.textContent = ".trailer-overlay{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:34px;background:radial-gradient(circle at 50% 18%,rgba(56,189,248,0.16),transparent 32%),linear-gradient(180deg,rgba(5,7,12,0.88),rgba(0,0,0,0.96));backdrop-filter:none;cursor:default}.trailer-modal{width:min(1120px,94vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;color:#f8fafc;background:#05070c;border:1px solid rgba(255,255,255,0.12);border-radius:8px;box-shadow:0 30px 80px rgba(0,0,0,0.68),0 0 0 1px rgba(255,255,255,0.04) inset;cursor:default;animation:trailerFadeIn .18s ease-out}@keyframes trailerFadeIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}.trailer-header{position:absolute;top:0;left:0;right:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px 34px;background:linear-gradient(180deg,rgba(0,0,0,0.66),rgba(0,0,0,0));border:0;pointer-events:none;opacity:1;transition:opacity .18s ease,transform .18s ease}.trailer-title{min-width:0;display:flex;align-items:center;gap:10px;font:700 15px/1.3 Arial,\"Microsoft YaHei\",sans-serif;pointer-events:auto}.trailer-code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.4px}.trailer-source{flex-shrink:0;padding:3px 9px;border-radius:999px;color:rgba(255,255,255,0.82);background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);font-size:12px;font-weight:500;backdrop-filter:blur(12px)}.jav-player-close{width:34px;height:34px;border:0;border-radius:50%;color:#fff;background:rgba(255,255,255,0.14);cursor:pointer;font-size:18px;line-height:34px;pointer-events:auto;box-shadow:0 8px 20px rgba(0,0,0,0.22);transition:transform .15s ease,background .15s ease,box-shadow .15s ease}.jav-player-close:hover{transform:scale(1.08);background:rgba(248,113,113,0.34);box-shadow:0 10px 24px rgba(0,0,0,0.28)}.trailer-screen{position:relative;aspect-ratio:16 / 9;width:100%;max-height:82vh;overflow:hidden;background:radial-gradient(circle at center,rgba(31,41,55,.75),#000 62%),#000}.trailer-screen:fullscreen{width:100vw;height:100vh;max-height:none;aspect-ratio:auto;display:flex;align-items:center;justify-content:center;background:#000}.trailer-screen:-webkit-full-screen{width:100vw;height:100vh;max-height:none;aspect-ratio:auto;display:flex;align-items:center;justify-content:center;background:#000}.trailer-screen::before{content:\"\";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0.52),rgba(0,0,0,0) 30%),linear-gradient(0deg,rgba(0,0,0,0.62),rgba(0,0,0,0) 36%)}.trailer-screen.is-iframe::before{display:none}.trailer-screen video,.trailer-screen iframe{position:absolute;inset:0;width:100%;height:100%;display:block;border:0;background:#000;object-fit:contain}.trailer-volume-indicator{position:absolute;top:62px;right:26px;z-index:5;color:#f8fafc;font:750 24px/1 Arial,\"Microsoft YaHei\",sans-serif;text-shadow:0 2px 8px rgba(0,0,0,0.82);opacity:0;pointer-events:none;transition:opacity .14s ease}.trailer-volume-indicator.is-visible{opacity:1}.trailer-fallback-status{position:absolute;left:18px;top:58px;z-index:5;max-width:min(520px,calc(100% - 36px));padding:7px 10px;border-radius:8px;color:rgba(255,255,255,0.9);background:rgba(10,14,22,0.68);border:1px solid rgba(255,255,255,0.16);box-shadow:0 12px 28px rgba(0,0,0,0.28);backdrop-filter:blur(14px);font:12px/1.45 Arial,\"Microsoft YaHei\",sans-serif;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .16s ease,transform .16s ease}.trailer-fallback-status.is-visible{opacity:1;transform:translateY(0)}.trailer-quality-bar{display:flex;align-items:center;gap:8px;padding:0;background:transparent;border:none;border-radius:0;backdrop-filter:none}.trailer-quality-select{min-width:78px;max-width:140px;height:30px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.12);color:#f8fafc;outline:none;font-size:12px;line-height:28px;text-align:center;text-align-last:center;appearance:none;cursor:pointer}.trailer-quality-select option{background:#0b1020;color:#f8fafc}.trailer-footer{position:absolute;left:16px;right:16px;bottom:16px;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;color:rgba(255,255,255,0.78);background:rgba(10,14,22,0.62);border:1px solid rgba(255,255,255,0.16);border-radius:8px;box-shadow:0 18px 40px rgba(0,0,0,0.32);backdrop-filter:blur(16px) saturate(1.08);font:12px/1.4 Arial,\"Microsoft YaHei\",sans-serif;opacity:1;transform:translateY(0);transition:opacity .18s ease,transform .18s ease}.trailer-screen.is-controls-hidden{cursor:none}.trailer-screen.is-controls-hidden .trailer-header{opacity:0;transform:translateY(-8px);pointer-events:none}.trailer-screen.is-controls-hidden .trailer-footer{opacity:0;transform:translateY(10px);pointer-events:none}.trailer-control-left,.trailer-control-right{display:flex;align-items:center;gap:9px;min-width:0}.trailer-control-left{flex:1 1 auto}.trailer-control-right{flex:0 0 auto}.trailer-control-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0;border:0;border-radius:999px;color:#fff;background:rgba(255,255,255,0.14);cursor:pointer;font:700 13px/1 Arial,\"Microsoft YaHei\",sans-serif;transition:background .15s ease,transform .15s ease}.trailer-control-btn:hover{background:rgba(255,255,255,0.24);transform:translateY(-1px)}.trailer-volume-wrap{position:relative;width:30px;height:30px;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;box-sizing:border-box}.trailer-volume-wrap::before{content:\"\";position:absolute;left:50%;bottom:100%;width:46px;height:18px;transform:translateX(-50%)}.trailer-volume-popover{position:absolute;left:15px;bottom:42px;width:36px;height:126px;display:flex;align-items:center;justify-content:center;padding:12px 0;border-radius:999px;background:rgba(10,14,22,0.76);border:1px solid rgba(255,255,255,0.16);box-sizing:border-box;box-shadow:0 14px 32px rgba(0,0,0,0.34);backdrop-filter:blur(16px) saturate(1.08);opacity:0;pointer-events:none;transform:translate(-50%,6px);transition:opacity .15s ease,transform .15s ease}.trailer-volume-wrap:hover .trailer-volume-popover{opacity:1;pointer-events:auto;transform:translate(-50%,0)}.trailer-volume-rail{position:absolute;left:50%;top:16px;bottom:16px;width:4px;transform:translateX(-50%);border-radius:999px;background:rgba(255,255,255,0.32);pointer-events:none}.trailer-volume-fill{position:absolute;left:0;right:0;bottom:0;height:var(--volume-percent,35%);border-radius:999px;background:#38bdf8}.trailer-volume-thumb{position:absolute;left:50%;bottom:var(--volume-percent,35%);width:16px;height:16px;transform:translate(-50%,50%);border-radius:50%;background:#38bdf8;border:2px solid rgba(255,255,255,0.92);box-shadow:0 2px 8px rgba(0,0,0,0.38)}.trailer-volume-slider{position:absolute;top:10px;bottom:10px;left:50%;width:16px;height:calc(100% - 20px);margin:0;transform:translateX(-50%);appearance:none;-webkit-appearance:none;writing-mode:vertical-lr;direction:rtl;background:transparent;cursor:pointer}.trailer-volume-slider::-webkit-slider-runnable-track{width:100%;height:100%;background:transparent}.trailer-volume-slider::-moz-range-track{width:100%;height:100%;background:transparent}.trailer-volume-slider::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:16px;background:transparent;border:0;box-shadow:none}.trailer-volume-slider::-moz-range-thumb{width:24px;height:16px;background:transparent;border:0;box-shadow:none}.trailer-time{flex:0 0 auto;min-width:36px;color:rgba(255,255,255,0.78);font:11px/1.3 Arial,\"Microsoft YaHei\",sans-serif;white-space:nowrap;text-align:center}.trailer-progress{flex:1 1 160px;min-width:120px;height:4px;margin:0;border-radius:999px;accent-color:#38bdf8;cursor:pointer}";
+        document.head.appendChild(s);
+    })();
+
+    // HLS 加载器（使用 GM_xmlhttpRequest 绕过 CORS，与参考脚本一致）
+ function createTrailerHlsRuntime() {
+  const HLS_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.18/dist/hls.min.js';
+  const getHlsClass = () => {
+   const HlsClass = window.Hls || globalThis.Hls || (typeof Hls !== 'undefined' ? Hls : null);
+   return HlsClass?.isSupported?.() ? HlsClass : null;
+  };
+  const binaryTextToArrayBuffer = (value) => {
+   const text = String(value || ''); const bytes = new Uint8Array(text.length);
+   for (let index = 0; index < text.length; index += 1) { bytes[index] = text.charCodeAt(index) & 0xff; }
+   return bytes.buffer;
+  };
+  let hlsLoadPromise = null;
+  const loadHlsLibrary = () => {
+   const readyHls = getHlsClass();
+   if (readyHls) return Promise.resolve(readyHls);
+   if (hlsLoadPromise) return hlsLoadPromise;
+   const loadByGm = () => new Promise(resolve => {
+    GM_xmlhttpRequest({
+     method: 'GET',
+     url: HLS_SCRIPT_URL,
+     timeout: 15000,
+     onload: (r) => {
+      if (r.status >= 200 && r.status < 300 && r.responseText) {
+       try {
+        Function(`${r.responseText}\n//# sourceURL=${HLS_SCRIPT_URL}`).call(globalThis);
+       } catch (err) { errorLog('TrailerResolver:HLS hls.js 执行失败', err); }
+      }
+      resolve(getHlsClass());
+     },
+     onerror: () => resolve(getHlsClass()),
+     ontimeout: () => resolve(getHlsClass())
+    });
+   });
+   hlsLoadPromise = new Promise(resolve => {
+    const existing = document.querySelector('script[data-laosiji-hls="1"]');
+    if (existing) {
+     existing.addEventListener('load', () => resolve(getHlsClass()), { once: true });
+     existing.addEventListener('error', () => loadByGm().then(resolve), { once: true });
+     setTimeout(() => {
+      if (!getHlsClass()) loadByGm().then(resolve);
+     }, 4000);
+     return;
+    }
+    const hlsScript = document.createElement('script');
+    hlsScript.src = HLS_SCRIPT_URL; hlsScript.async = true; hlsScript.dataset.laosijiHls = '1'; hlsScript.onload = () => resolve(getHlsClass());
+    hlsScript.onerror = () => loadByGm().then(resolve);
+    document.head.appendChild(hlsScript);
+   }).then(HlsClass => {
+    if (!HlsClass) hlsLoadPromise = null;
+    return HlsClass;
+   });
+   return hlsLoadPromise;
+  };
+  const createHlsLoader = () => class GMHlsLoader {
+   constructor(config) {
+    this.config = config; this.context = null; this.callbacks = null; this.loader = null; this.stats = this.createStats();
+   }
+   createStats() {
+    return {
+     aborted: false,
+     loaded: 0,
+     retry: 0,
+     total: 0,
+     chunkCount: 0,
+     bwEstimate: 0,
+     trequest: 0,
+     tfirst: 0,
+     tload: 0,
+     loading: {
+      start: 0,
+      first: 0,
+      end: 0
+     },
+     parsing: {
+      start: 0,
+      end: 0
+     },
+     buffering: {
+      start: 0,
+      first: 0,
+      end: 0
+     }
+    };
+   }
+   destroy() {
+    this.abort();
+   }
+   abort() {
+    if (this.stats) this.stats.aborted = true;
+    this.loader?.abort?.();
+    this.loader = null;
+   }
+   load(context, config, callbacks) {
+    this.context = context; this.callbacks = callbacks;
+    const requestUrl = context.url; const wantsArrayBuffer = context.responseType === 'arraybuffer' || /\.(?:ts|m4s|mp4|key)(?:[?#]|$)/i.test(requestUrl);
+    const startedAt = performance.now(); const stats = this.stats = this.createStats();
+    stats.trequest = startedAt; stats.tfirst = startedAt; stats.tload = startedAt; stats.loading.start = startedAt;
+    this.loader = GM_xmlhttpRequest({
+     method: 'GET',
+     url: requestUrl,
+     responseType: 'text',
+     overrideMimeType: wantsArrayBuffer ? 'text/plain; charset=x-user-defined' : undefined,
+     timeout: config?.timeout || 20000,
+     headers: {
+      Accept: wantsArrayBuffer ? '*/*' : 'application/vnd.apple.mpegurl, application/x-mpegURL, */*'
+     },
+     onprogress: (event) => {
+      stats.loaded = Number(event?.loaded || stats.loaded || 0); stats.total = Number(event?.total || stats.total || stats.loaded || 0);
+      if (!stats.loading.first && stats.loaded > 0) stats.loading.first = performance.now();
+     },
+     onload: (r) => {
+      const status = Number(r.status || 0);
+      const response = { code: status, text: r.statusText || '', url: r.finalUrl || requestUrl };
+      stats.tfirst = stats.tfirst || performance.now(); stats.tload = performance.now(); stats.loading.first = stats.loading.first || stats.tload;
+      stats.loading.end = stats.tload;
+      if (status < 200 || status >= 300) { callbacks.onError?.(response, context, null, stats); return; }
+      const responseText = r.responseText ?? r.response ?? ''; const data = wantsArrayBuffer ? binaryTextToArrayBuffer(responseText) : responseText;
+      stats.loaded = data?.byteLength || data?.length || stats.loaded || 0; stats.total = stats.total || stats.loaded;
+      stats.bwEstimate = stats.loading.end > stats.loading.first ? Math.round((stats.total * 8000) / (stats.loading.end - stats.loading.first)) : 0;
+      callbacks.onSuccess?.({ data, url: response.url }, stats, context, response);
+     },
+     onerror: () => callbacks.onError?.({ code: 0, text: 'network error', url: requestUrl }, context, null, stats),
+     ontimeout: () => {
+      stats.tload = performance.now(); stats.loading.end = stats.tload;
+      callbacks.onTimeout?.(stats, context, null);
+     }
+    });
+   }
+  };
+  return { getHlsClass, loadHlsLibrary, createHlsLoader };
+ }
+
+    // 预告片数据获取（javxy API，优先 JavTrailers 源）
     function jbTrailerToken() {
         return [118,119,112,71,97,110,28,84,124,65,76,102,65,16,77,109,64,82,85,83,67,92,125,108,83,65,124,107,84,104,71,84,17,124,118,125,104,8,125,96,112,103,29,18,82,83,87,84].map(v => String.fromCharCode(v ^ 0x25)).join('');
     }
     function jbTrailerGet(code) {
         return new Promise((resolve) => {
-            // 依次尝试「无需日本 IP 的源（JavTrailers）」→「默认源（DMM）」，每个源再依次尝试主节点与 Worker 节点
             const hosts = ['javxy.cc.cd', 'worker.javxy.cc.cd'];
             const query = encodeURIComponent(String(code || '').trim());
             const sourceList = ['JavTrailers', ''];
@@ -3802,7 +3945,8 @@ if (Hls.isSupported()) {
                                 const keys = Object.keys(qm);
                                 const quality = (data?.quality && qm[data.quality]) ? data.quality : (keys.length ? keys[0] : null);
                                 const src = qm[quality] || trailerUrl;
-                                resolve({ url: src, qualities: qm, quality: quality, source: String(data?.source || 'dmm'), type: String(data?.type || 'video') });
+                                const urls = Object.values(qm).filter(Boolean);
+                                resolve({ url: src, qualities: qm, quality: quality, source: String(data?.source || 'dmm'), type: String(data?.type || 'video'), urls: urls });
                             } catch (e) { tryHost(i + 1); }
                         },
                         onerror: () => tryHost(i + 1),
@@ -3815,72 +3959,101 @@ if (Hls.isSupported()) {
         });
     }
 
-    // 预告片播放器：当前页沉浸式弹层（深色标题栏 + 居中播放器 + 画质选择 + 自动隐藏控制栏）
+    // 预告片播放器（使用参考脚本的深色沉浸式外观 + HLS GM加载器）
     function jbShowTrailer(code) {
         if (!code) return;
+        document.querySelector('.trailer-overlay')?.remove();
         const overlay = document.createElement('div');
-        overlay.className = 'jb-trailer-overlay';
-        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Arial,sans-serif;';
-        overlay.innerHTML = `
-            <div class="jb-trailer-topbar" style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(180deg,rgba(0,0,0,0.8),transparent);z-index:2;">
-                <span style="color:#ffd166;font-weight:700;font-size:14px;">🎞️ 预告片</span>
-                <span class="jb-trailer-code" style="color:#fff;font-weight:700;font-size:14px;">${jbEscapeHtml(code)}</span>
-                <span class="jb-trailer-source" style="color:#999;font-size:12px;"></span>
-                <span style="flex:1"></span>
-                <span class="jb-trailer-close" style="cursor:pointer;color:#fff;font-size:22px;line-height:1;padding:2px 10px;border-radius:8px;background:rgba(255,255,255,0.12);">✕</span>
-            </div>
-            <div class="jb-trailer-stage" style="width:min(1100px,94vw);height:min(600px,86vh);position:relative;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.08);">
-                <div class="jb-trailer-loading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:14px;">
-                    <div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.2);border-top-color:#ffd166;border-radius:50%;animation:jbTrailerSpin .8s linear infinite;"></div>
-                    <div>正在解析预告片地址...</div>
-                </div>
-                <video class="jb-trailer-video" controls style="width:100%;height:100%;object-fit:contain;background:#000;display:none;"></video>
-            </div>
-            <div class="jb-trailer-footer" style="position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#777;font-size:12px;">点击空白处或按 ESC 关闭</div>
-            <style>@keyframes jbTrailerSpin{to{transform:rotate(360deg)}}</style>
-        `;
+        overlay.className = 'trailer-overlay';
+        const modal = document.createElement('div');
+        modal.className = 'trailer-modal';
+        modal.onclick = (e) => e.stopPropagation();
+        const header = document.createElement('div');
+        header.className = 'trailer-header';
+        const title = document.createElement('div');
+        title.className = 'trailer-title';
+        title.innerHTML = '<span>🎞️</span><span class="trailer-code"> ' + jbEscapeHtml(code) + ' </span><span class="trailer-source"> 预告片 </span>';
+        const sourceBadge = title.querySelector('.trailer-source');
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'jav-player-close';
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+        const screen = document.createElement('div');
+        screen.className = 'trailer-screen';
+        const loadingDiv = document.createElement('div');
+        loadingDiv.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:14px;z-index:3;';
+        loadingDiv.innerHTML = '<div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.2);border-top-color:#38bdf8;border-radius:50%;animation:jbTrailerSpin .8s linear infinite;"></div><div>正在解析预告片地址...</div>';
+        screen.appendChild(loadingDiv);
+        screen.appendChild(header);
+        modal.appendChild(screen);
+        overlay.appendChild(modal);
         document.body.appendChild(overlay);
-        const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+        const origOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        let hlsInstance = null;
+        const close = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+            document.body.style.overflow = origOverflow;
+            if (hlsInstance) { try { hlsInstance.destroy(); } catch(e) {} }
+        };
         const onKey = (e) => { if (e.key === 'Escape') close(); };
         document.addEventListener('keydown', onKey);
-        overlay.querySelector('.jb-trailer-close').onclick = close;
+        closeBtn.onclick = close;
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-        const video = overlay.querySelector('.jb-trailer-video');
-        const loading = overlay.querySelector('.jb-trailer-loading');
-        const srcEl = overlay.querySelector('.jb-trailer-source');
+        const { getHlsClass, loadHlsLibrary, createHlsLoader } = createTrailerHlsRuntime();
+        const video = document.createElement('video');
+        video.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:none;';
+        screen.appendChild(video);
+
+        const showVideo = () => { loadingDiv.style.display = 'none'; video.style.display = 'block'; video.play().catch(() => {}); };
+
+        const tryPlayHls = (url) => {
+            const HlsClass = getHlsClass() || (typeof Hls !== 'undefined' ? Hls : null);
+            if (!HlsClass || !HlsClass.isSupported()) return false;
+            try {
+                hlsInstance = new HlsClass({
+                    enableWorker: false, lowLatencyMode: true, loader: createHlsLoader(),
+                    autoStartLoad: true, maxBufferLength: 6, maxMaxBufferLength: 12, backBufferLength: 30,
+                    manifestLoadingMaxRetry: 2, levelLoadingMaxRetry: 2, fragLoadingMaxRetry: 2,
+                    manifestLoadingTimeOut: 12000, levelLoadingTimeOut: 12000, fragLoadingTimeOut: 12000,
+                });
+                hlsInstance.loadSource(url);
+                hlsInstance.attachMedia(video);
+                hlsInstance.on(HlsClass.Events.MANIFEST_PARSED, showVideo);
+                hlsInstance.on(HlsClass.Events.ERROR, (ev, data) => {
+                    if (!data?.fatal) return;
+                    if (data.type === HlsClass.ErrorTypes.MEDIA_ERROR) { try { hlsInstance.recoverMediaError(); } catch(e) {} return; }
+                    loadingDiv.innerHTML = '<div style="color:#e74c3c;">预告片加载失败</div><div style="font-size:12px;color:#999;margin-top:8px;">已优先尝试无需日本 IP 的源（JavTrailers），仍失败可稍后重试</div>';
+                });
+                return true;
+            } catch(e) { return false; }
+        };
+
         jbTrailerGet(code).then(res => {
             if (!overlay.isConnected) return;
             if (!res || !res.url) {
-                loading.innerHTML = '<div style="color:#e74c3c;">未找到可用预告片</div><div style="font-size:12px;color:#888;">可点击“在线播放”观看完整影片</div>';
+                loadingDiv.innerHTML = '<div style="color:#e74c3c;">未找到可用预告片</div><div style="font-size:12px;color:#888;">可点击"在线播放"观看完整影片</div>';
                 return;
             }
-            srcEl.textContent = '来源：' + (res.source || 'Javxy');
+            sourceBadge.textContent = res.source || 'Javxy';
             const url = res.url;
             const isHls = /.m3u8(?:[?#].*)?$/i.test(url) || String(res.type).toLowerCase() === 'hls';
-            const play = () => { video.style.display = 'block'; loading.style.display = 'none'; video.play().catch(() => {}); };
-            const tryHls = () => {
-                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-                    const hls = new Hls({ maxBufferLength: 30 });
-                    hls.loadSource(url);
-                    hls.attachMedia(video);
-                    hls.on(Hls.Events.MANIFEST_PARSED, play);
-                    hls.on(Hls.Events.ERROR, (ev, data) => { if (data.fatal) { loading.innerHTML = '<div style="color:#e74c3c;">预告片加载失败</div><div style="font-size:12px;color:#999;margin-top:8px;">已优先尝试无需日本 IP 的源（JavTrailers），仍失败可能是该源暂不可用，可稍后重试</div>'; } });
-                    return true;
-                }
-                return false;
-            };
             if (isHls) {
-                if (!tryHls()) {
-                    const s = document.createElement('script');
-                    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.3/dist/hls.min.js';
-                    s.onload = () => { if (!tryHls()) { video.src = url; video.addEventListener('loadedmetadata', play); } };
-                    s.onerror = () => { video.src = url; video.addEventListener('loadedmetadata', play); };
-                    document.head.appendChild(s);
-                }
+                const ensureHls = () => getHlsClass() ? Promise.resolve() : loadHlsLibrary().then(() => {});
+                ensureHls().then(() => {
+                    if (!overlay.isConnected) return;
+                    if (!tryPlayHls(url)) {
+                        video.src = url;
+                        video.addEventListener('loadedmetadata', showVideo, { once: true });
+                    }
+                });
             } else {
                 video.src = url;
-                video.addEventListener('loadedmetadata', play);
+                video.addEventListener('loadedmetadata', showVideo, { once: true });
             }
         });
     }
