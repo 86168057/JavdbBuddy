@@ -99,7 +99,7 @@
 
 ### 方式一：官网安装（推荐）
 
-👉 访问 [代码独行](https://dmdx.cc) 获取最新版本、完整图文安装教程与更新动态
+👉 访问官网图文教程：[https://www.dmdx.cc/blog/javdbbuddy-userscript](https://www.dmdx.cc/blog/javdbbuddy-userscript)（功能总览 · 三步安装 · 常见问题）
 
 ### 方式二：GitHub 直接安装
 
