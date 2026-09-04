@@ -1,5 +1,7 @@
 # JavdbBuddy — Javdb 全能助手
 
+![JavdbBuddy](docs/banner.svg)
+
 > JAVDB 一站式增强 Tampermonkey 用户脚本，集成在线播放、预览图查看、Emby / Jellyfin 入库状态同步、磁力链管理、多站点快捷搜索、免 VIP 热播/Top250/FC2PPV、全部评论、识图搜索等功能。
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -8,6 +10,8 @@
 ---
 
 ## ✨ 功能特性
+
+![功能总览](docs/features.svg)
 
 ### 🎬 在线播放
 
@@ -85,6 +89,8 @@
 </details>
 
 ## 🚀 安装
+
+![安装流程](docs/install.svg)
 
 ### 前置要求
 
