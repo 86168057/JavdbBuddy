@@ -1,29 +1,61 @@
 # JavdbBuddy — Javdb 全能助手
 
-> JAVDB 一站式增强 Tampermonkey 用户脚本，集成 Emby / Jellyfin 入库状态同步、预览图查看、磁力链管理、多站点快捷搜索、免 VIP 热播/Top250/FC2PPV、全部评论、相关清单等功能。
+> JAVDB 一站式增强 Tampermonkey 用户脚本，集成在线播放、预览图查看、Emby / Jellyfin 入库状态同步、磁力链管理、多站点快捷搜索、免 VIP 热播/Top250/FC2PPV、全部评论、识图搜索等功能。
 
-[![Greasy Fork](https://img.shields.io/badge/Greasy%20Fork-564141-brightgreen)](https://greasyfork.org/scripts/564141)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/86168057/JavdbBuddy)](https://github.com/86168057/JavdbBuddy)
+[![Stars](https://img.shields.io/github/stars/dmdx-cc/JavdbBuddy)](https://github.com/dmdx-cc/JavdbBuddy)
 
 ---
 
 ## ✨ 功能特性
 
-| 分类 | 功能 |
-|------|------|
-| **Emby / Jellyfin** | 详情页 & 列表页实时显示入库状态标签，一键跳转 Emby/Jellyfin 播放 |
-| **预览图** | 列表页鼠标悬停放大封面图，详情页内嵌预览视频 |
-| **磁力链管理** | 详情页双标签磁力页（JavDB + JavBus），列表页快捷按钮一键复制/跳转 |
-| **多站点搜索** | 详情页一键搜索多个站点（JavDB、JavBus、MissAV 等） |
-| **免 VIP 功能** | 热播排行、Top250、FC2PPV 免 VIP 查看 |
-| **全部评论** | 突破限制加载所有评论 |
-| **相关清单** | 免 VIP 查看相关清单 |
-| **超级功能** | 导航栏集成「排行榜」快捷入口（热播 / Top250 / FC2） |
-| **浮动按钮** | 返回顶部 ⬆ / 翻到底部 ⬇ 快捷浮动按钮 |
-| **识图搜索** | 支持点击/拖拽/粘贴上传图片进行 Google 以图搜图 |
-| **播放器模式** | MissAV / Jable 直链播放器 + HLS.js 播放器 |
-| **在线搜索** | 多站点快捷搜索，支持番号一键跳转 |
+### 🎬 在线播放
+
+- **一键在线播放**：详情页 / 列表页一键播放影片，无需下载任何视频文件
+- **三源智能竞速**：自动在 MissAV / JPTT / Jable 三大源站间并行解析，谁快用谁
+- **HLS 流式播放**：基于 HLS.js 的 m3u8 流式播放，无需等待下载完成
+- **页内弹层播放器**：不离开当前页面，弹层内直接观看，支持画质切换、倍速、音量记忆
+
+### 🖼️ 预览图
+
+- **列表页悬停放大**：鼠标悬停封面即弹出高清预览长图
+- **双源并行加载**：JavStore / JavFree 两源并行获取，加载更快
+- **详情页预览**：详情页内嵌预览视频与图片
+- **竖版大图模式**：支持切换竖版封面大图浏览
+
+### 🔄 Emby / Jellyfin 同步
+
+- 详情页 & 列表页实时显示入库状态标签（已入库 / 未入库）
+- 一键跳转 Emby / Jellyfin 播放
+- 批量校验状态缓存，避免重复请求
+
+### 🧲 磁力链管理
+
+- 详情页**双标签磁力页**（JavDB + JavBus 双站聚合）
+- 列表页快捷按钮，一键复制磁力链
+- 多站点磁力搜索标签，自动聚合结果
+
+### 🔍 搜索与识图
+
+- **多站点快捷搜索**：详情页一键跳转 JavDB、JavBus、MissAV 等多个站点
+- **以图搜图**：支持点击选择 / 拖拽 / Ctrl+V 粘贴上传，自动调用 Google Lens 识图
+
+### 💎 免 VIP 功能
+
+- 热播排行免 VIP 查看
+- Top250 榜单免 VIP 查看
+- FC2PPV 免 VIP 查看
+- 相关清单免 VIP 查看
+- 全部评论突破限制加载
+
+### 🛠️ 其他增强
+
+- **短评系统**：列表页 / 详情页快捷查看短评
+- **演员栏**：详情页左侧竖排演员栏，支持快捷搜索演员作品
+- **导航增强**：导航栏集成「排行榜」快捷入口（热播 / Top250 / FC2）
+- **返回顶部 / 翻到底部**：快捷浮动按钮
+- **无缝翻页**：列表页滚动自动加载下一页
+- **卡片动画**：卡片悬停浮起动效，可调节卡片列数与页面宽度
 
 ## 📸 功能展示
 
@@ -59,13 +91,13 @@
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展（Chrome / Firefox / Edge / Safari）
 2. 确保 Tampermonkey 已启用
 
-### 方式一：Greasy Fork 安装（推荐）
+### 方式一：官网安装（推荐）
 
-👉 [点击安装脚本](https://greasyfork.org/scripts/564141)
+👉 访问 [代码独行](https://dmdx.cc) 获取最新版本、完整图文安装教程与更新动态
 
 ### 方式二：GitHub 直接安装
 
-👉 [点击安装脚本](https://raw.githubusercontent.com/86168057/JavdbBuddy/main/JavdbBuddy.user.js)
+👉 [点击安装脚本](https://raw.githubusercontent.com/dmdx-cc/JavdbBuddy/main/JavdbBuddy.user.js)
 
 ### 方式三：手动安装
 
@@ -79,10 +111,11 @@
 安装后在 JavDB 页面右上角会出现 **⚙️ 设置** 按钮，点击可进入设置面板：
 
 - **Emby / Jellyfin** — 填写服务器地址和 API Key，即可同步入库状态
-- **预览图** — 开启/关闭列表页封面悬停放大
+- **预览图** — 开启/关闭列表页封面悬停放大、竖版大图模式
 - **磁力链** — 配置磁力链显示和复制行为
 - **搜索站点** — 自定义快捷搜索的站点列表
 - **播放器** — 配置直链播放和静音策略
+- **通用** — 卡片列数、页面宽度、无缝翻页、卡片动画等界面偏好
 
 ## 🌐 支持站点
 
@@ -91,8 +124,8 @@
 | JavDB | javdb.com | 全部功能 |
 | JavBus | javbus.com | 磁力链、Cookie 复用 |
 | Sehuatang | sehuatang.net | 全部功能 |
-| MissAV | missav.ws | 直链播放器、播放器模式 |
-| Jable | jable.tv | 直链播放器、播放器模式 |
+| MissAV | missav.ws | 在线播放、播放器模式 |
+| Jable | jable.tv | 在线播放、播放器模式 |
 
 ## 📋 依赖
 
@@ -101,15 +134,11 @@
 | [blueimp-md5](https://github.com/blueimp/JavaScript-MD5) | MD5 哈希计算 |
 | [Preact](https://preactjs.com/) | UI 渲染 |
 | [GM_xhr more parallel](https://greasyfork.org/scripts/515994) | 增强 GM_xmlhttpRequest 并发能力 |
-| [HLS.js](https://github.com/video-dev/hls.js/) | HLS 视频流播放（直链模式） |
+| [HLS.js](https://github.com/video-dev/hls.js/) | HLS 视频流播放（在线播放） |
 
 ## 📄 许可证
 
-[MIT License](LICENSE) — 潇洒公子
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
+[MIT License](LICENSE)
 
 ## ⭐ 支持
 
