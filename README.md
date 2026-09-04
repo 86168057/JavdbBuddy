@@ -85,11 +85,11 @@
 <!--JB_VER_START-->
 ## 📦 下载
 
-**当前版本：v2.9.5**（更新日期：2026-09-04）
+**当前版本：v2.9.6**（更新日期：2026-09-04）
 
 | 安装包 | 说明 |
 |---|---|
-| [ZIP 安装包](https://www.dmdx.cc/uploads/common/2026/09/JavdbBuddy-v2.9.5.zip) | 解压后「加载已解压的扩展程序」 |
+| [ZIP 安装包](https://www.dmdx.cc/uploads/common/2026/09/JavdbBuddy-v2.9.6.zip) | 解压后「加载已解压的扩展程序」 |
 | [CRX 安装包](https://www.dmdx.cc/uploads/common/crx/JavdbBuddy.crx) | 下载后直接拖入 `chrome://extensions` 安装 |
 
 > 两种安装包内容完全相同，任选其一。
