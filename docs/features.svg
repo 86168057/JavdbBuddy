@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#0e1a2e"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="640" fill="url(#bg2)"/>
+  <text x="600" y="52" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="28" font-weight="800" fill="#f1f5f9">功能总览</text>
+  <rect x="540" y="64" width="120" height="4" rx="2" fill="url(#bar)"/>
+
+  <!-- 卡片 3列 x 3行：x=45/425/805 宽350 高160 y=95/270/445 -->
+  <g>
+    <rect x="45" y="95" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="45" y="95" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="78" y="140" font-size="26" fill="#7dd3c8">🎬</text>
+    <text x="112" y="146" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">在线播放</text>
+    <text x="78" y="180" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">MissAV / JPTT / Jable 三源竞速</text>
+    <text x="78" y="206" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">HLS 流式播放 · 画质切换 · 页内弹层</text>
+    <text x="78" y="232" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">无需下载，点击即看</text>
+  </g>
+  <g>
+    <rect x="425" y="95" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="425" y="95" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="458" y="140" font-size="26" fill="#7dd3c8">🖼️</text>
+    <text x="492" y="146" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">预览图</text>
+    <text x="458" y="180" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">列表页悬停放大高清封面</text>
+    <text x="458" y="206" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">JavStore / JavFree 双源并行</text>
+    <text x="458" y="232" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">支持竖版大图模式</text>
+  </g>
+  <g>
+    <rect x="805" y="95" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="805" y="95" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="838" y="140" font-size="26" fill="#7dd3c8">🔄</text>
+    <text x="872" y="146" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">Emby / Jellyfin 同步</text>
+    <text x="838" y="180" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">详情页 / 列表页入库状态标签</text>
+    <text x="838" y="206" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">一键跳转媒体库播放</text>
+    <text x="838" y="232" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">支持状态批量校验与缓存</text>
+  </g>
+  <g>
+    <rect x="45" y="270" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="45" y="270" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="78" y="315" font-size="26" fill="#7dd3c8">🧲</text>
+    <text x="112" y="321" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">磁力链聚合</text>
+    <text x="78" y="355" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">JavDB + JavBus 双标签磁力页</text>
+    <text x="78" y="381" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">列表页一键复制磁力链</text>
+    <text x="78" y="407" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">多站点结果自动聚合</text>
+  </g>
+  <g>
+    <rect x="425" y="270" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="425" y="270" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="458" y="315" font-size="26" fill="#7dd3c8">🔍</text>
+    <text x="492" y="321" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">以图搜图</text>
+    <text x="458" y="355" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">点击 / 拖拽 / Ctrl+V 粘贴上传</text>
+    <text x="458" y="381" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">自动调用 Google Lens 识图</text>
+    <text x="458" y="407" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">支持 JPG / PNG / WebP / GIF</text>
+  </g>
+  <g>
+    <rect x="805" y="270" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="805" y="270" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="838" y="315" font-size="26" fill="#7dd3c8">💎</text>
+    <text x="872" y="321" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">免 VIP 功能</text>
+    <text x="838" y="355" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">热播排行 / Top250 / FC2PPV</text>
+    <text x="838" y="381" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">相关清单 · 全部评论加载</text>
+    <text x="838" y="407" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">突破查看限制</text>
+  </g>
+  <g>
+    <rect x="45" y="445" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="45" y="445" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="78" y="490" font-size="26" fill="#7dd3c8">🌐</text>
+    <text x="112" y="496" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">多站点快捷搜索</text>
+    <text x="78" y="530" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">JavDB / JavBus / MissAV 一键跳转</text>
+    <text x="78" y="556" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">自定义搜索站点列表</text>
+    <text x="78" y="582" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">番号直达搜索结果</text>
+  </g>
+  <g>
+    <rect x="425" y="445" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="425" y="445" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="458" y="490" font-size="26" fill="#7dd3c8">💬</text>
+    <text x="492" y="496" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">短评 / 演员</text>
+    <text x="458" y="530" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">列表页短评快捷查看</text>
+    <text x="458" y="556" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">详情页左侧竖排演员栏</text>
+    <text x="458" y="582" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">演员作品一键检索</text>
+  </g>
+  <g>
+    <rect x="805" y="445" width="350" height="160" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <rect x="805" y="445" width="6" height="160" rx="3" fill="url(#bar)"/>
+    <text x="838" y="490" font-size="26" fill="#7dd3c8">🛠️</text>
+    <text x="872" y="496" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="21" font-weight="700" fill="#f1f5f9">浏览体验增强</text>
+    <text x="838" y="530" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">无缝翻页 · 卡片动画</text>
+    <text x="838" y="556" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="15" fill="#94a3b8">卡片列数 / 页面宽度自定义</text>
+    <text x="838" y="582" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="13" fill="#475569">返回顶部 / 翻到底部浮钮</text>
+  </g>
+</svg>
