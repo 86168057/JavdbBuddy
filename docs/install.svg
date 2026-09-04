@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#0e1a2e"/>
+    </linearGradient>
+    <linearGradient id="bar3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="260" fill="url(#bg3)"/>
+  <text x="600" y="46" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="26" font-weight="800" fill="#f1f5f9">三步安装</text>
+
+  <g>
+    <rect x="60" y="76" width="300" height="120" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <circle cx="100" cy="118" r="20" fill="#14b8a6"/>
+    <text x="100" y="125" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="18" font-weight="800" fill="#0b1220">1</text>
+    <text x="132" y="126" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="20" font-weight="700" fill="#f1f5f9">安装 Tampermonkey</text>
+    <text x="88" y="164" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#94a3b8">浏览器扩展（Chrome / Firefox</text>
+    <text x="88" y="184" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#94a3b8">/ Edge / Safari）</text>
+  </g>
+  <path d="M370 136 H430" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="440" y="76" width="300" height="120" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <circle cx="480" cy="118" r="20" fill="#0ea5e9"/>
+    <text x="480" y="125" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="18" font-weight="800" fill="#0b1220">2</text>
+    <text x="512" y="126" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="20" font-weight="700" fill="#f1f5f9">一键安装脚本</text>
+    <text x="468" y="164" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#94a3b8">点击 README 安装链接，或前往</text>
+    <text x="468" y="184" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#94a3b8">官网获取最新版本</text>
+  </g>
+  <path d="M750 136 H810" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="820" y="76" width="320" height="120" rx="14" fill="#111f33" stroke="#1e3a5f"/>
+    <circle cx="860" cy="118" r="20" fill="#14b8a6"/>
+    <text x="860" y="125" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="18" font-weight="800" fill="#0b1220">3</text>
+    <text x="892" y="126" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="20" font-weight="700" fill="#f1f5f9">打开 JavDB 即刻增强</text>
+    <text x="848" y="164" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#94a3b8">右上角「⚙️ 设置」进入设置面板</text>
+    <text x="848" y="184" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#94a3b8">按需开启各功能模块</text>
+  </g>
+  <text x="600" y="232" text-anchor="middle" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif" font-size="14" fill="#475569">官网：https://dmdx.cc</text>
+</svg>
