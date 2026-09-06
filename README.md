@@ -82,26 +82,13 @@
 
 </details>
 
-<!--JB_VER_START-->
-## 📦 下载
-
-**当前版本：v2.9.10**（更新日期：2026-09-05）
-
-| 安装包 | 说明 |
-|---|---|
-| [ZIP 安装包](https://www.dmdx.cc/uploads/common/2026/09/JavdbBuddy-v2.9.10.zip) | 解压后「加载已解压的扩展程序」 |
-| [CRX 安装包](https://www.dmdx.cc/uploads/common/crx/JavdbBuddy.crx) | 下载后直接拖入 `chrome://extensions` 安装 |
-
-> 两种安装包内容完全相同，任选其一。
-<!--JB_VER_END-->
-
 ## 🚀 安装（Chrome / Edge）
 
 ![安装流程](docs/install.svg)
 
-### 方式一：官网图文教程（推荐）
+### 方式一：官网页面（推荐）
 
-👉 访问官网图文教程页获取最新版本与完整安装说明：[JAVDB全能助手 — 图文教程](https://www.dmdx.cc/blog/javdbbuddy-userscript)
+👉 访问官网页面获取最新版本、功能介绍与安装说明：[JAVDB全能助手 — 官网页面](https://www.dmdx.cc/javdbbuddy)
 
 ### 方式二：手动加载
 
